@@ -103,6 +103,9 @@ class SvgRenderer:
         if p["type"] == "dot":
             return (f'<ellipse cx="{X(p["x"])}" cy="{Y(p["y"])}" '
                     f'rx="{fmt(p["r"] * ss)}" ry="{fmt(p["r"] * ss)}"/>')
+        if p["type"] == "rect":
+            return (f'<rect x="{X(p["x"])}" y="{Y(p["y"])}" '
+                    f'width="{fmt(p["w"] * ss)}" height="{fmt(p["h"] * ss)}"/>')
         if p["type"] == "text":
             anchor = (f' text-anchor="{p["anchor"]}"'
                       if p.get("anchor", "start") != "start" else "")

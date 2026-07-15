@@ -192,6 +192,8 @@ def rebase_prims(prims, x0, top, staff_space):
                 q["w"] = su(p["w"])
         elif p["type"] == "dot":
             q.update(x=sx(p["x"]), y=sy(p["y"]), r=su(p["r"]))
+        elif p["type"] == "rect":
+            q.update(x=sx(p["x"]), y=sy(p["y"]), w=su(p["w"]), h=su(p["h"]))
         elif p["type"] == "text":
             q.update(text=p["text"], x=sx(p["x"]), y=sy(p["y"]),
                      size=su(p["size"]), anchor=p["anchor"])
@@ -212,6 +214,8 @@ def apply_vertical_extents(measures):
         for p in m["primitives"]:
             if p["type"] in ("glyph", "dot", "text"):
                 ys.append(p["y"])
+            elif p["type"] == "rect":
+                ys.extend((p["y"], p["y"] + p["h"]))
             elif p["type"] == "line":
                 ys.extend((p["y1"], p["y2"]))
             elif p["type"] in ("beam", "curve", "polyline"):
@@ -334,6 +338,12 @@ class MeasureExtractor:
             prims.append({"type": "polyline", "role": role,
                           "points": list(zip(pts[0::2], pts[1::2])),
                           "w": float(el.get("stroke-width", 0))})
+        elif tag == "rect":
+            # Filled rectangle: multi-measure rest bars (H-bar style).
+            prims.append({"type": "rect", "role": role,
+                          "x": float(el.get("x", 0)), "y": float(el.get("y", 0)),
+                          "w": float(el.get("width", 0)),
+                          "h": float(el.get("height", 0))})
         elif tag == "ellipse":
             rx, ry = float(el.get("rx", 0)), float(el.get("ry", 0))
             if rx != ry:
@@ -392,6 +402,8 @@ class MeasureExtractor:
                 xs = [pt[0] for pt in p["points"]]
             elif p["type"] == "dot":
                 xs = [p["x"]]
+            elif p["type"] == "rect":
+                xs = [p["x"], p["x"] + p["w"]]
             if xs and (min(xs) < -slack or max(xs) > width + slack):
                 self.warnings.append(
                     f"measure {index}: {p['type']} ({p['role']}) outside bounds "

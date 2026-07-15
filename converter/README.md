@@ -71,6 +71,7 @@ width (validates the "firmware draws staff lines" format decision).
 | `dot`   | x, y, r                         | `<ellipse>` (augmentation dots)  |
 | `text`  | text, x, y, size, anchor, weight | `<text>/<tspan>` (volta labels)  |
 | `polyline` | points[], w (stroked, open)  | `<polyline>` (hairpin wedges, tuplet brackets) |
+| `rect`  | x, y, w, h (filled)             | `<rect>` (multi-measure rest bars) |
 
 Volta brackets ("hus") are emitted by Verovio as `<g class="ending">`
 *siblings* of the measure groups (milestone pattern); the extractor attaches
@@ -117,6 +118,10 @@ Lessons from the first real part (Under blågul fana, Bb-trompet 3):
 - Multi-measure rests survive structurally but the count may be misread
   ("32" bars read as 2). Verovio renders an N-bar rest as one measure;
   `parse_repeats` maps MusicXML indices to svg measure indices accordingly.
+  **Correcting the count**: edit the MusicXML — set `<multiple-rest>` to the
+  true value and duplicate the block's plain rest measures to match (then
+  renumber). This is the general shape of OMR correction: fix the MusicXML
+  intermediate, never the primitives.
 - No OCR languages installed → text directions (TRIO, tempo) are dropped.
   Volta numbers and dynamics still work (they are symbols, not OCR).
 - Expect manual correction of OMR output in MuseScore for real use;
