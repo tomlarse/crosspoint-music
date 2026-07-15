@@ -31,3 +31,4 @@ converter/.venv/
 converter/out/
 converter/tools/
 converter/testdata/*.pdf
+converter/fontsrc/

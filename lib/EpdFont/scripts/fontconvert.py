@@ -376,6 +376,11 @@ for i_start, i_end in intervals:
 
 # pipe seems to be a good heuristic for the "real" descender
 face = load_glyph(ord('|'))
+if face is None:
+    # Symbol-only fonts (e.g. SMuFL music fonts) have no '|' glyph; fall
+    # back to the primary face for the line metrics.
+    face = font_stack[0]
+    face.set_char_size(size << 6, size << 6, 150, 150)
 
 glyph_data = []
 glyph_props = []

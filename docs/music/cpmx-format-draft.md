@@ -168,4 +168,6 @@ contract so corrupt-file behavior can be exercised on the desktop.
   like other caches? (It's a conversion artifact, not a cache — leaning
   alongside.)
 - Multiple staff-size classes for GLYPH scale → firmware size-class mapping
-  table (define when the EpdFont/Bravura spike lands).
+  table. Glyph spike landed (see PLAN.md Constraints): three classes at
+  staff space 10/12/16 px, ~63 KB flash for a full marching-band glyph
+  set. The mapping table itself is Phase-3 firmware work.

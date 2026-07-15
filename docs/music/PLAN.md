@@ -68,6 +68,7 @@ PDF/image ─OMR──┘        │
 ## Constraints to watch
 
 - **Flash budget**: the default env build is already at **82% flash** (5.4/6.5MB, measured 2026-07-15). Bravura glyph sets at multiple sizes cost flash — measure before/after, consider trimming to the glyph ranges actually used.
+  - **Measured (glyph spike, 2026-07-15): flash is a non-issue.** A realistic full marching-band set (240 Bravura glyphs: clefs, time sigs, noteheads, flags, accidentals, articulations, fermatas, rests, dynamics, ornaments, repeats/segno/coda, tuplet digits) through the `lib/EpdFont/` pipeline (2-bit + DEFLATE, same as builtin text fonts) at THREE staff sizes costs **~63 KB** total — ~6% of the ~1.1 MB headroom. The minimal set actually used by the test corpus (51 glyphs) is 16 KB. Conversion: `fontconvert.py <name> <pt> Bravura.otf --2bit --compress --additional-intervals 0xE050,0xE063 ...` where pt = staff-space-px × 4 × 72/150 (SMuFL: em = staff height). Size classes chosen: ss 10/12/16 px → 19/23/31 pt. G clef bitmap verified visually (correct shape and proportions). fontconvert.py needed one fix: symbol-only fonts lack the `'|'` glyph it probes for line metrics.
 - **RAM**: 380KB hard ceiling; boot-time usage was 15.6% (51KB) at fork time. Measure primitives must stream from SD, never hold a whole score in RAM.
 - Root `CLAUDE.md` rules apply unchanged (HAL only, `makeUniqueNoThrow`, `tr()` for UI strings, no bare `new`, etc.). Its scope philosophy ("dedicated e-reader, not a Swiss Army knife") is overridden here: sheet music IS the mission of this fork.
 
