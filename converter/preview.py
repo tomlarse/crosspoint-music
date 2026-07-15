@@ -173,8 +173,12 @@ def render_reflow(doc, staff_space, page_width, margin, order=None):
     key_prims = [p for p in measures[0]["primitives"]
                  if p["role"] in ("keySig", "keyAccid")]
     # Where the key signature starts, right of the clef; reused when a
-    # mid-piece key change replaces the signature.
-    key_anchor = min((p["x"] for p in key_prims), default=2.5)
+    # mid-piece key change replaces the signature. When measure 0 has no
+    # signature (e.g. OMR only detected the key later in the piece), leave
+    # room for the full clef glyph, which extends ~3 staff spaces right of
+    # its anchor.
+    clef_x = min((p["x"] for p in clef_prims), default=0.5)
+    key_anchor = min((p["x"] for p in key_prims), default=clef_x + 3.5)
 
     def header():
         return clef_prims + key_prims

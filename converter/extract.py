@@ -499,6 +499,16 @@ def parse_repeats(musicxml_path, measure_count, warnings):
             f"{measure_count}; playOrder skipped")
         return {}, None
 
+    # Monophony guard: this pipeline targets single-voice band parts, so
+    # <chord> notes in the source are almost certainly OMR misreads
+    # (invented extra noteheads) that need correcting in the MusicXML.
+    for i, m in enumerate(mx_measures):
+        chords = [n for n in m.findall("note") if n.find("chord") is not None]
+        if chords:
+            warnings.append(
+                f"MusicXML measure {m.get('number')}: {len(chords)} chord "
+                f"note(s) in a monophonic part — likely OMR misread")
+
     fwd = {}
     back_times = {}
     volta = {}
