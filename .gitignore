@@ -25,3 +25,7 @@ lib/EpdFont/scripts/output/
 # (worktrees, scheduled-task locks, settings.local, scout CLEANUP.md) out.
 .claude/*
 !.claude/skills/
+
+# Sheet-music converter prototype (converter/)
+converter/.venv/
+converter/out/

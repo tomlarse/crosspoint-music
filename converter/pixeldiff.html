@@ -1,0 +1,89 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>cpmx pixel diff</title>
+<style>
+  body { font: 14px system-ui; margin: 20px; }
+  canvas { border: 1px solid #ccc; max-width: 100%; height: auto; display: block; }
+  #result { font-size: 18px; font-weight: 600; margin: 12px 0; }
+</style>
+<h1>Pixel diff: Verovio original vs primitive re-render</h1>
+<p>Query param <code>?stem=out/simple-melody</code> selects the file pair.
+Ink = alpha &gt; 200, empty = alpha &lt; 50; pixels in between (anti-aliasing)
+are ignored. The part-name label is stripped from the original since the
+extractor intentionally skips text outside measures.</p>
+<div id="result">loading…</div>
+<h2>Diff map (red = only in original, blue = only in re-render)</h2>
+<canvas id="diff"></canvas>
+<script>
+async function loadSvgImage(url, strip) {
+  let text = await (await fetch(url)).text();
+  if (strip) {
+    const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+    doc.querySelectorAll("g.label").forEach(el => el.remove());
+    text = new XMLSerializer().serializeToString(doc);
+  }
+  const blob = new Blob([text], { type: "image/svg+xml" });
+  const img = new Image();
+  await new Promise((ok, err) => {
+    img.onload = ok;
+    img.onerror = err;
+    img.src = URL.createObjectURL(blob);
+  });
+  return img;
+}
+
+function inkMask(img, w, h) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0);
+  return ctx.getImageData(0, 0, w, h).data;
+}
+
+(async () => {
+  const stem = new URLSearchParams(location.search).get("stem") || "out/simple-melody";
+  const [orig, rerender] = await Promise.all([
+    loadSvgImage(stem + ".verovio.svg", true),
+    loadSvgImage(stem + ".rerender.svg", false),
+  ]);
+  const w = Math.max(orig.naturalWidth, rerender.naturalWidth);
+  const h = Math.max(orig.naturalHeight, rerender.naturalHeight);
+  const a = inkMask(orig, w, h);
+  const b = inkMask(rerender, w, h);
+
+  const canvas = document.getElementById("diff");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  const out = ctx.createImageData(w, h);
+  let ink = 0, onlyA = 0, onlyB = 0;
+  for (let i = 0; i < w * h; i++) {
+    const aInk = a[i * 4 + 3] > 200, aEmpty = a[i * 4 + 3] < 50;
+    const bInk = b[i * 4 + 3] > 200, bEmpty = b[i * 4 + 3] < 50;
+    if (aInk || bInk) ink++;
+    let color = null;
+    if (aInk && bEmpty) { onlyA++; color = [204, 34, 0]; }
+    else if (bInk && aEmpty) { onlyB++; color = [0, 51, 204]; }
+    else if (aInk && bInk) color = [225, 225, 225];
+    if (color) {
+      out.data[i * 4] = color[0];
+      out.data[i * 4 + 1] = color[1];
+      out.data[i * 4 + 2] = color[2];
+      out.data[i * 4 + 3] = 255;
+    }
+  }
+  // Saturation guard: if most of the canvas is "ink", one of the SVGs is
+  // painting a background and the diff is meaningless.
+  if (ink > 0.5 * w * h) {
+    throw new Error(`ink mask saturated (${ink} of ${w * h} px) — ` +
+      "an SVG is painting an opaque background; diff is invalid");
+  }
+  const pct = (100 * (onlyA + onlyB) / ink).toFixed(3);
+  document.getElementById("result").textContent =
+    `ink pixels: ${ink}, only-in-original: ${onlyA}, only-in-rerender: ${onlyB} ` +
+    `→ mismatch ${pct}% of ink`;
+  document.title = `pixel diff ${pct}%`;
+  ctx.putImageData(out, 0, 0);
+})().catch(e => {
+  document.getElementById("result").textContent = "ERROR: " + e;
+});
+</script>

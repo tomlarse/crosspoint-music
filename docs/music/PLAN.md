@@ -1,11 +1,23 @@
 # Sheet Music Support — Project Plan
 
-**Status**: Planning complete, Phase 1 not started (2026-07-15)
+**Status**: Phase 1 prototype working (2026-07-15) — see [converter/README.md](../../converter/README.md). SVG harvesting round-trips at 0.000% ink-pixel mismatch on an 8-measure monophonic test melody. That validates harvesting *fidelity* on simple input only — not firmware rasterization and not richer notation; extraction warnings + pixel diff are the ongoing robustness gauges as test coverage grows.
 **Repo**: This is a standalone fork of [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader) dedicated to this prototype. `upstream` remote points at the main project for pulling updates (`git fetch upstream && git merge upstream/develop`). Do NOT open PRs against upstream from this work.
 
 ## Vision
 
 Display sheet music on the Xteink X4 the way EPUBs are displayed: the device reflows the score to fit its screen (orientation, zoom level), instead of showing fixed pre-paginated pages. Reading music on e-ink today means panning around a scaled PDF; we want measure-aware reflow.
+
+## Use case (decided 2026-07-15)
+
+**Marching band parts, read on-instrument in the field.** The player always has exactly one voice in front of them. This fixes the scope:
+
+- **Always monophonic, single staff.** Multi-staff (piano/grand staff), multi-voice, and concert scores are OUT of scope for this fork — not deferred, out.
+- **Clef is fixed per piece** (G or F), never changes mid-piece.
+- **Key changes mid-piece ARE in scope** — trio modulation is standard in marches.
+- **Core v1 artifacts**: notes/rests, accidentals, key signatures, time signatures, ties/slurs (incl. cross-barline splits), trills.
+- **v1: repeats and endings ("hus") with navigation** (decided 2026-07-15). Marches live on repeated strains with first/second endings, so paging must follow *performance order*: page forward at a repeat and the device jumps back to the right spot, second time through it shows the second ending. The converter unrolls the repeat structure into a `playOrder` list of measure indices (prototyped, see converter/); firmware just pages linearly through it. Repeat barlines/dots and volta brackets render from ordinary primitives. D.C./D.S. al Fine jumps are not unrolled yet — same mechanism, Phase 2.
+- **v1.x**: text under notes/staff via the TEXT primitive — drill cues written into the part (and it doubles as lyrics support).
+- **Out**: chord symbols, dynamics-driven layout complexity beyond plain glyphs.
 
 ## Key insight
 
@@ -48,9 +60,9 @@ PDF/image ─OMR──┘        │
 
 ## Known hard problems
 
-- **Slurs/ties across line breaks**: when a measure lands at a system start/end the curve must be redrawn split. Plan: converter pre-generates split variants ("whole", "split-at-start", "split-at-end") per affected measure so firmware does no curve geometry.
+- **Slurs/ties across line breaks**: when a measure lands at a system start/end the curve must be redrawn split. Plan: converter pre-generates split variants ("whole", "split-at-start", "split-at-end") per affected measure so firmware does no curve geometry. Note (codex review 2026-07-15): harvesting one endless-system outline gives no semantic anchors to split on — generating variants likely means re-rendering with Verovio's forced breaks at candidate positions, or reading its MEI/timemap to identify the spanned notes.
 - **System headers**: clef + key signature must be re-inserted at every system start; converter emits them as separate primitive blocks per (clef, key) combination.
-- **Multi-staff (piano/grand staff)**: measure widths must sync across staves in a system. **v1 is monophonic, single staff.**
+- ~~**Multi-staff (piano/grand staff)**~~: no longer a problem — out of scope entirely (see Use case). The format stays single-staff.
 - **Zoom**: 2–3 fixed staff sizes (bitmap glyphs), not free scaling.
 
 ## Constraints to watch
@@ -59,9 +71,18 @@ PDF/image ─OMR──┘        │
 - **RAM**: 380KB hard ceiling; boot-time usage was 15.6% (51KB) at fork time. Measure primitives must stream from SD, never hold a whole score in RAM.
 - Root `CLAUDE.md` rules apply unchanged (HAL only, `makeUniqueNoThrow`, `tr()` for UI strings, no bare `new`, etc.). Its scope philosophy ("dedicated e-reader, not a Swiss Army knife") is overridden here: sheet music IS the mission of this fork.
 
-## Open questions (decide during Phase 1)
+## Open questions
 
-- Converter language: Python + `verovio` PyPI bindings (fastest iteration) vs C++ linking Verovio directly. Leaning Python for the prototype.
-- Is SVG harvesting robust enough, or do we need to hook Verovio's internal object model (its C++ API exposes the layout tree)?
+Decided during Phase 1 (2026-07-15):
+
+- **Converter language**: Python + `verovio` PyPI bindings. Iteration speed won; nothing needed the C++ API.
+- **SVG harvesting robustness**: promising but only proven on trivial input. On the monophonic test piece every element inside `<g class="measure">` maps cleanly to one of five primitives (glyph/line/beam/curve/dot), glyph codepoints are recoverable from `<use>` ids, and the re-render pixel-diffs at 0.000% against Verovio's own output. Safety nets in the pipeline: extract.py warns on any unhandled element/transform/path command instead of guessing, and pixeldiff.html quantifies ink mismatch (with a saturation guard). Known gaps to close as coverage grows (codex review 2026-07-15): stroked-vs-filled curve semantics (wedges, brackets), group transforms, non-5-line staves, richer notation (tuplets, dynamics, lyrics, grace notes), and per-glyph bounding boxes for vertical pagination.
+
+- **Repeats/voltas/lyrics/chord symbols** (2026-07-15, use-case decision): repeats + voltas are v1 *with navigation* (see Use case); text under staff (drill cues/lyrics) v1.x via TEXT primitive; chord symbols out.
+- **How Verovio emits voltas** (verified 2026-07-15): repeat dots are SMuFL glyph E044 inside the owning measure's barLine group — harvested for free. Volta brackets are `<g class="ending">` *siblings* of measures (milestone pattern) containing 3 straight lines + a bold text label; the converter attaches them to the right measure by bracket midpoint. TEXT primitive implemented for the labels.
+
+Still open:
+
 - How ABC ingest enters: Verovio reads ABC natively, so possibly free.
-- Repeats/voltas, lyrics, chord symbols: which make v1?
+- D.C./D.S. al Fine: extend the unroller with jump directives (Fine, segno, coda) — same playOrder mechanism, needs `<sound>`/direction parsing.
+- Volta brackets spanning multiple measures need per-measure splitting (same family as slur splits).
