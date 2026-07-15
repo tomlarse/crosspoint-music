@@ -113,6 +113,7 @@ class CpmxReader {
   bool loadHeaderBlock(uint8_t index, HeaderBlockView& out);
 
  private:
+  bool openInternal(const char* path);
   bool readRecord(uint32_t tableIndex, uint32_t& lengthOut);
   uint32_t recordOffset(uint32_t tableIndex) const;
 

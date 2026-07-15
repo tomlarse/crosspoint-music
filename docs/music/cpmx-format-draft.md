@@ -135,8 +135,10 @@ firmware reader must fail cleanly (LOG_ERR + refuse to open), never crash.
 - `systemHeaderIdx < headerBlockCount` for every measure.
 - Unknown primitive tag, unknown measure flag bits (above bit1), or a
   truncated primitive payload → reject.
-- Practical ceilings for the 380KB target (reject above): primitives per
-  list ≤ 4096, points per primitive ≤ 255 (u8), text ≤ 255 bytes (u8).
+- Practical ceilings for the 380KB target (reject above, BEFORE
+  allocating): measureCount ≤ 4096, playOrderLen ≤ 16384, titleLen ≤ 256,
+  primitives per list ≤ 4096, points per primitive ≤ 255 (u8),
+  text ≤ 255 bytes (u8), single record ≤ 32 KB.
 
 The converter's reader/simulator (`cpmx_render.py`) implements this same
 contract so corrupt-file behavior can be exercised on the desktop.

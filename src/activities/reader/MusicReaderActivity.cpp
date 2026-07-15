@@ -5,7 +5,9 @@
 #include <Logging.h>
 #include <Memory.h>
 
+#include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "ReaderUtils.h"
 #include "RecentBooksStore.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -77,9 +79,11 @@ void MusicReaderActivity::onEnter() {
   APP_STATE.saveToFile();
   RECENT_BOOKS.addBook(filePath, fileName, "", "");
 
+  ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+
   musicFontAscender_ = renderer.getFontAscenderSize(MUSIC_23_FONT_ID);
   pagePos_ = 0;
-  previousPages_.clear();
+  previousPageCount_ = 0;
   // TODO(progress): persist/restore the playOrder position like the text
   // readers do (reading progress = position in playOrder, per the spec).
   if (!layoutPage(pagePos_)) {
@@ -90,6 +94,8 @@ void MusicReaderActivity::onEnter() {
 }
 
 void MusicReaderActivity::onExit() {
+  // Reset orientation back to portrait for the rest of the UI
+  renderer.setOrientation(GfxRenderer::Orientation::Portrait);
   APP_STATE.readerActivityLoadCount = 0;
   APP_STATE.saveToFile();
   reader.close();
@@ -105,7 +111,7 @@ void MusicReaderActivity::showError() {
 }
 
 bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
-  systems_.clear();
+  systemCount_ = 0;
   const int usableWidth = renderer.getScreenWidth() - 2 * MARGIN_PX;
   const int pageHeight = renderer.getScreenHeight();
   const int pitch = SYSTEM_PITCH_SS * staffSpacePx_;
@@ -116,12 +122,11 @@ bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
   cpmx::MeasureView measure;
   cpmx::HeaderBlockView block;
 
-  while (pos < playLen && y + pitch <= pageHeight - MARGIN_PX) {
+  while (pos < playLen && y + pitch <= pageHeight - MARGIN_PX && systemCount_ < MAX_SYSTEMS_PER_PAGE) {
     // Continuation lines start with the clef/key header block.
     int x = 0;
     if (pos != 0) {
-      if (!reader.loadMeasure(reader.playOrderAt(pos), measure) ||
-          !reader.loadHeaderBlock(measure.headerIdx, block)) {
+      if (!reader.loadMeasure(reader.playOrderAt(pos), measure) || !reader.loadHeaderBlock(measure.headerIdx, block)) {
         return false;
       }
       x = fpToPx(block.advanceFp);
@@ -140,17 +145,17 @@ bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
       x += widthPx;
       count++;
     }
-    systems_.push_back({pos, count});
+    systems_[systemCount_++] = {pos, count};
     pos += count;
     y += pitch;
   }
   nextPagePos_ = pos;
-  return !systems_.empty();
+  return systemCount_ > 0;
 }
 
 void MusicReaderActivity::renderPage() {
   renderer.clearScreen();
-  for (size_t i = 0; i < systems_.size(); i++) {
+  for (size_t i = 0; i < systemCount_; i++) {
     const int oy = MARGIN_PX + SYSTEM_TOP_SS * staffSpacePx_ + static_cast<int>(i) * SYSTEM_PITCH_SS * staffSpacePx_;
     drawSystem(systems_[i], oy);
   }
@@ -189,11 +194,19 @@ void MusicReaderActivity::drawSystem(const SystemLayout& system, const int oy) {
 
   for (uint16_t j = 0; j < system.count; j++) {
     const uint16_t pos = system.startPos + j;
-    if (!reader.loadMeasure(reader.playOrderAt(pos), measure)) {
+    const uint16_t idx = reader.playOrderAt(pos);
+    if (!reader.loadMeasure(idx, measure)) {
       return;
     }
-    const bool brokenBefore = (j == 0 && pos != 0);
-    const bool brokenAfter = (j == system.count - 1 && pos + 1 < playLen);
+    // Split curves only connect measures that are score-adjacent. At a
+    // repeat/volta jump the neighbour in playOrder is a different measure,
+    // so a crossing curve must be stubbed (splitAtEnd) even mid-line, and
+    // no continuation half may be drawn after the jump.
+    const bool prevAdjacent = pos > 0 && reader.playOrderAt(pos - 1) + 1 == idx;
+    const bool nextAdjacent = pos + 1 < playLen && reader.playOrderAt(pos + 1) == idx + 1;
+    const bool lineBreakAfter = (j == system.count - 1) && pos + 1 < playLen;
+    const bool brokenBefore = (j == 0) && prevAdjacent;
+    const bool brokenAfter = (pos + 1 < playLen) && (lineBreakAfter || !nextAdjacent);
     drawMeasure(measure, x, oy, brokenBefore, brokenAfter);
     x += fpToPx(measure.widthFp);
   }
@@ -265,6 +278,9 @@ void MusicReaderActivity::drawPrim(const cpmx::Prim& prim, const int ox, const i
       return;
     }
     case cpmx::PrimType::Polyline: {
+      if (prim.pointCount == 0) {
+        return;
+      }
       const int w = fpToPx(prim.w);
       int16_t x1, y1;
       prim.pointAt(0, x1, y1);
@@ -291,8 +307,7 @@ void MusicReaderActivity::drawPrim(const cpmx::Prim& prim, const int ox, const i
       const size_t len = prim.textLen < sizeof(buf) - 1 ? prim.textLen : sizeof(buf) - 1;
       memcpy(buf, prim.text, len);
       buf[len] = '\0';
-      const auto style =
-          (prim.textFlags & cpmx::TEXT_FLAG_BOLD) ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+      const auto style = (prim.textFlags & cpmx::TEXT_FLAG_BOLD) ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
       renderer.drawText(UI_10_FONT_ID, ox + fpToPx(prim.x1),
                         oy + fpToPx(prim.y1) - renderer.getFontAscenderSize(UI_10_FONT_ID), buf, true, style);
       return;
@@ -301,25 +316,33 @@ void MusicReaderActivity::drawPrim(const cpmx::Prim& prim, const int ox, const i
 }
 
 void MusicReaderActivity::pageForward() {
-  if (nextPagePos_ >= reader.playOrderLength()) {
-    return;  // last page
+  if (nextPagePos_ >= reader.playOrderLength() || previousPageCount_ >= MAX_PAGE_HISTORY) {
+    return;  // last page (or history exhausted — pathological page counts)
   }
-  previousPages_.push_back(pagePos_);
-  pagePos_ = nextPagePos_;
-  if (layoutPage(pagePos_)) {
-    renderPage();
+  const uint16_t newPos = nextPagePos_;
+  if (!layoutPage(newPos)) {
+    LOG_ERR("MUSIC", "Layout failed at position %u", newPos);
+    layoutPage(pagePos_);  // restore the current page's layout state
+    return;
   }
+  previousPages_[previousPageCount_++] = pagePos_;
+  pagePos_ = newPos;
+  renderPage();
 }
 
 void MusicReaderActivity::pageBack() {
-  if (previousPages_.empty()) {
+  if (previousPageCount_ == 0) {
     return;
   }
-  pagePos_ = previousPages_.back();
-  previousPages_.pop_back();
-  if (layoutPage(pagePos_)) {
-    renderPage();
+  const uint16_t newPos = previousPages_[previousPageCount_ - 1];
+  if (!layoutPage(newPos)) {
+    LOG_ERR("MUSIC", "Layout failed at position %u", newPos);
+    layoutPage(pagePos_);
+    return;
   }
+  previousPageCount_--;
+  pagePos_ = newPos;
+  renderPage();
 }
 
 void MusicReaderActivity::loop() {

@@ -4,7 +4,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "MappedInputManager.h"
 #include "activities/Activity.h"
@@ -45,14 +44,22 @@ class MusicReaderActivity final : public Activity {
   /// Fixed-point staff spaces (1/64) -> screen px at the current staff size.
   int fpToPx(int32_t fp) const { return static_cast<int>((fp * staffSpacePx_) >> cpmx::COORD_FP_SHIFT); }
 
+  // Fixed capacities: growth-free containers (a vector push_back can abort
+  // under -fno-exceptions on OOM). The activity object itself is heap
+  // allocated, so these arrays cost nothing on the stack.
+  static constexpr size_t MAX_SYSTEMS_PER_PAGE = 32;
+  static constexpr size_t MAX_PAGE_HISTORY = 256;
+
   std::string filePath;
   cpmx::CpmxReader reader;
   int staffSpacePx_ = 12;
   int musicFontAscender_ = 0;
   uint16_t pagePos_ = 0;      // playOrder position at the top of this page
   uint16_t nextPagePos_ = 0;  // where the next page starts
-  std::vector<uint16_t> previousPages_;
-  std::vector<SystemLayout> systems_;
+  uint16_t previousPages_[MAX_PAGE_HISTORY] = {};
+  size_t previousPageCount_ = 0;
+  SystemLayout systems_[MAX_SYSTEMS_PER_PAGE] = {};
+  size_t systemCount_ = 0;
   // fillPolygon scratch for curve/beam points (heap: 2 KB would be too much
   // stack; allocated once in onEnter, freed automatically on destruction)
   std::unique_ptr<int[]> polyX_;
