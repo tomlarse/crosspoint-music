@@ -70,6 +70,7 @@ width (validates the "firmware draws staff lines" format decision).
 | `curve` | points[] (flattened bezier), w  | `<path>` with `C` segments (ties, slurs) |
 | `dot`   | x, y, r                         | `<ellipse>` (augmentation dots)  |
 | `text`  | text, x, y, size, anchor, weight | `<text>/<tspan>` (volta labels)  |
+| `polyline` | points[], w (stroked, open)  | `<polyline>` (hairpin wedges, tuplet brackets) |
 
 Volta brackets ("hus") are emitted by Verovio as `<g class="ending">`
 *siblings* of the measure groups (milestone pattern); the extractor attaches
@@ -88,6 +89,41 @@ Glyph outlines harvested from Verovio's `<defs>` are embedded in the JSON so
 the preview reproduces exact shapes without needing the Bravura font. The
 firmware will instead rasterize Bravura glyphs by codepoint through the
 `lib/EpdFont/` pipeline.
+
+## OMR: PDF → MusicXML (Audiveris)
+
+Real parts arrive as PDF; [Audiveris](https://github.com/Audiveris/audiveris)
+converts them to MusicXML. Setup (once): download the macOS dmg from the
+GitHub releases, copy `Audiveris.app` into `converter/tools/` (gitignored),
+`xattr -dr com.apple.quarantine` it.
+
+```bash
+# Rasterize the part page yourself — Audiveris caps input at 20 Mpx and
+# band parts are often engraved on A2, so crop to the music region to get
+# real 300 DPI under the cap:
+pdftoppm -r 300 -png -singlefile -x 0 -y 0 -W <w> -H <h> part.pdf out/page
+tools/Audiveris.app/Contents/MacOS/Audiveris -batch -export \
+    -output out/omr out/page.png
+unzip -d out/mxl out/omr/page.mxl
+.venv/bin/python extract.py out/mxl/page.xml -o out
+```
+
+Lessons from the first real part (Under blågul fana, Bb-trompet 3):
+
+- **Resolution matters**: at 200 DPI Audiveris missed the initial key
+  signature (piece read in C instead of F — wrong pitches throughout).
+  At 300 DPI (cropped) the key, both repeats and both ending pairs came
+  out correct. Always eyeball the result against the PDF.
+- Multi-measure rests survive structurally but the count may be misread
+  ("32" bars read as 2). Verovio renders an N-bar rest as one measure;
+  `parse_repeats` maps MusicXML indices to svg measure indices accordingly.
+- No OCR languages installed → text directions (TRIO, tempo) are dropped.
+  Volta numbers and dynamics still work (they are symbols, not OCR).
+- Expect manual correction of OMR output in MuseScore for real use;
+  the extractor's warnings + pixel diff catch structural surprises.
+
+The source PDF page and OMR output stay out of git (the composition is
+public domain, but the engraving/arrangement may not be).
 
 ## Known limitations (fine for Phase 1)
 

@@ -186,7 +186,7 @@ def rebase_prims(prims, x0, top, staff_space):
         elif p["type"] == "line":
             q.update(x1=sx(p["x1"]), y1=sy(p["y1"]),
                      x2=sx(p["x2"]), y2=sy(p["y2"]), w=su(p["w"]))
-        elif p["type"] in ("beam", "curve"):
+        elif p["type"] in ("beam", "curve", "polyline"):
             q["points"] = [[sx(x), sy(y)] for x, y in p["points"]]
             if "w" in p:
                 q["w"] = su(p["w"])
@@ -214,7 +214,7 @@ def apply_vertical_extents(measures):
                 ys.append(p["y"])
             elif p["type"] == "line":
                 ys.extend((p["y1"], p["y2"]))
-            elif p["type"] in ("beam", "curve"):
+            elif p["type"] in ("beam", "curve", "polyline"):
                 ys.extend(pt[1] for pt in p["points"])
         m["yMin"] = round(min(ys), 4)
         m["yMax"] = round(max(ys), 4)
@@ -328,6 +328,12 @@ class MeasureExtractor:
             pts = [float(v) for v in NUMBER_RE.findall(el.get("points", ""))]
             prims.append({"type": "beam", "role": role,
                           "points": list(zip(pts[0::2], pts[1::2]))})
+        elif tag == "polyline":
+            # Stroked open line strip: hairpin wedges, tuplet brackets.
+            pts = [float(v) for v in NUMBER_RE.findall(el.get("points", ""))]
+            prims.append({"type": "polyline", "role": role,
+                          "points": list(zip(pts[0::2], pts[1::2])),
+                          "w": float(el.get("stroke-width", 0))})
         elif tag == "ellipse":
             rx, ry = float(el.get("rx", 0)), float(el.get("ry", 0))
             if rx != ry:
@@ -382,7 +388,7 @@ class MeasureExtractor:
                 xs = [p["x"]]
             elif p["type"] == "line":
                 xs = [p["x1"], p["x2"]]
-            elif p["type"] in ("beam", "curve"):
+            elif p["type"] in ("beam", "curve", "polyline"):
                 xs = [pt[0] for pt in p["points"]]
             elif p["type"] == "dot":
                 xs = [p["x"]]
@@ -455,9 +461,29 @@ def parse_repeats(musicxml_path, measure_count, warnings):
         warnings.append("MusicXML: no <part>, playOrder skipped")
         return {}, None
     mx_measures = part.findall("measure")
-    if len(mx_measures) != measure_count:
+
+    # Multi-measure rests: Verovio renders an N-measure rest as ONE svg
+    # measure, so MusicXML indices and svg measure indices diverge. Build
+    # the mapping before comparing counts.
+    mr_span = {}
+    for i, m in enumerate(mx_measures):
+        mr = m.find(".//multiple-rest")
+        if mr is not None and (mr.text or "").strip().isdigit():
+            mr_span[i] = int(mr.text)
+    mx2svg = [0] * len(mx_measures)
+    svg_i = -1
+    remaining = 0
+    for i in range(len(mx_measures)):
+        if remaining > 0:
+            remaining -= 1
+        else:
+            svg_i += 1
+            remaining = mr_span.get(i, 1) - 1
+        mx2svg[i] = svg_i
+    if svg_i + 1 != measure_count:
         warnings.append(
-            f"MusicXML has {len(mx_measures)} measures but the SVG produced "
+            f"MusicXML has {len(mx_measures)} measures "
+            f"({svg_i + 1} after multi-rest merging) but the SVG produced "
             f"{measure_count}; playOrder skipped")
         return {}, None
 
@@ -489,20 +515,32 @@ def parse_repeats(musicxml_path, measure_count, warnings):
             active = None
 
     per_measure = {}
-    for i in range(measure_count):
-        info = {}
+    for i in range(len(mx_measures)):
+        info = per_measure.setdefault(mx2svg[i], {})
         if fwd.get(i):
             info["repeatForward"] = True
         if i in back_times:
             info["repeatBackwardTimes"] = back_times[i]
         if i in volta:
             info["volta"] = volta[i]
-        if info:
-            per_measure[i] = info
+    per_measure = {k: v for k, v in per_measure.items() if v}
 
-    play_order = unroll_repeats(measure_count, fwd, back_times, volta)
-    if play_order is None:
+    order_mx = unroll_repeats(len(mx_measures), fwd, back_times, volta)
+    if order_mx is None:
         warnings.append("repeat structure did not converge, playOrder skipped")
+        return per_measure, None
+    # Map to svg indices, collapsing runs of *different* MusicXML measures
+    # that share one svg measure (a multi-rest traversed linearly). A
+    # genuine immediate repeat of the same measure is kept.
+    play_order = []
+    prev_mx = None
+    for idx in order_mx:
+        s = mx2svg[idx]
+        if play_order and play_order[-1] == s and prev_mx != idx:
+            prev_mx = idx
+            continue
+        play_order.append(s)
+        prev_mx = idx
     return per_measure, play_order
 
 

@@ -29,3 +29,5 @@ lib/EpdFont/scripts/output/
 # Sheet-music converter prototype (converter/)
 converter/.venv/
 converter/out/
+converter/tools/
+converter/testdata/*.pdf

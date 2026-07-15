@@ -95,6 +95,11 @@ class SvgRenderer:
             pts = " ".join(f'{X(x)},{Y(y)}' for x, y in p["points"])
             return (f'<polygon points="{pts}" stroke-width="{fmt(p["w"] * ss)}" '
                     f'stroke-linejoin="round"/>')
+        if p["type"] == "polyline":
+            pts = " ".join(f'{X(x)},{Y(y)}' for x, y in p["points"])
+            return (f'<polyline points="{pts}" fill="none" '
+                    f'stroke="currentColor" stroke-width="{fmt(p["w"] * ss)}" '
+                    f'stroke-linecap="square" stroke-linejoin="miter"/>')
         if p["type"] == "dot":
             return (f'<ellipse cx="{X(p["x"])}" cy="{Y(p["y"])}" '
                     f'rx="{fmt(p["r"] * ss)}" ry="{fmt(p["r"] * ss)}"/>')

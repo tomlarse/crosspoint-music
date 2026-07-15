@@ -1,6 +1,6 @@
 # Sheet Music Support — Project Plan
 
-**Status**: Phase 1 prototype working (2026-07-15) — see [converter/README.md](../../converter/README.md). SVG harvesting round-trips at 0.000% ink-pixel mismatch on an 8-measure monophonic test melody. That validates harvesting *fidelity* on simple input only — not firmware rasterization and not richer notation; extraction warnings + pixel diff are the ongoing robustness gauges as test coverage grows.
+**Status**: Phase 1 prototype working and validated on a real march part (2026-07-15) — see [converter/README.md](../../converter/README.md). Synthetic test pieces round-trip at 0.000% ink-pixel mismatch; a real Bb-trumpet part (Under blågul fana, via Audiveris OMR at 300 DPI) harvests at 0.035% with playOrder correctly unrolled for both strains. Every remaining extraction warning is a cross-measure tie/slur — the known Phase-2 split problem. The Phase-4 OMR pipeline (Audiveris) is already spiked and works; see the OMR section in converter/README.md for resolution pitfalls.
 **Repo**: This is a standalone fork of [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader) dedicated to this prototype. `upstream` remote points at the main project for pulling updates (`git fetch upstream && git merge upstream/develop`). Do NOT open PRs against upstream from this work.
 
 ## Vision
