@@ -18,12 +18,14 @@ class ReaderActivity final : public Activity {
   static bool isXtcFile(const std::string& path);
   static bool isTxtFile(const std::string& path);
   static bool isBmpFile(const std::string& path);
+  static bool isCpmxFile(const std::string& path);
 
   void goToLibrary(const std::string& fromBookPath = "");
   void onGoToEpubReader(std::unique_ptr<Epub> epub);
   void onGoToXtcReader(std::unique_ptr<Xtc> xtc);
   void onGoToTxtReader(std::unique_ptr<Txt> txt);
   void onGoToBmpViewer(const std::string& path);
+  void onGoToMusicReader(const std::string& path);
 
   void onGoBack();
 
