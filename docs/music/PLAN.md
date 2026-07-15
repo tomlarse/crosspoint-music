@@ -60,7 +60,7 @@ PDF/image ─OMR──┘        │
 
 ## Known hard problems
 
-- **Slurs/ties across line breaks**: when a measure lands at a system start/end the curve must be redrawn split. Plan: converter pre-generates split variants ("whole", "split-at-start", "split-at-end") per affected measure so firmware does no curve geometry. Note (codex review 2026-07-15): harvesting one endless-system outline gives no semantic anchors to split on — generating variants likely means re-rendering with Verovio's forced breaks at candidate positions, or reading its MEI/timemap to identify the spanned notes.
+- ~~**Slurs/ties across line breaks**~~: **solved in the converter prototype** (2026-07-15). The converter re-renders the piece once with a forced system break before every measure (`<print new-system="yes"/>` + `breaks: encoded`); Verovio then engraves every crossing curve split, and the halves are harvested as `splitAtEnd`/`splitAtStart` variants per measure, aligned to the master render via notehead anchors. The layout stage swaps whole curve ↔ halves depending on where breaks fall. Note: Verovio only draws the *departing* half at a break (no arriving stub in the continuation measure) — we match that convention.
 - **System headers**: clef + key signature must be re-inserted at every system start; converter emits them as separate primitive blocks per (clef, key) combination.
 - ~~**Multi-staff (piano/grand staff)**~~: no longer a problem — out of scope entirely (see Use case). The format stays single-staff.
 - **Zoom**: 2–3 fixed staff sizes (bitmap glyphs), not free scaling.

@@ -228,6 +228,7 @@ class MeasureExtractor:
     def __init__(self, glyphs):
         self.glyphs = glyphs
         self.warnings = []
+        self.crossing_measures = set()
 
     def extract(self, measure_el, index):
         staff_el = measure_el.find(f"{{{SVG_NS}}}g[@class='staff']")
@@ -387,10 +388,11 @@ class MeasureExtractor:
             if p["type"] == "curve":
                 xs = [pt[0] for pt in p["points"]]
                 if min(xs) < -0.15 or max(xs) > width + 0.15:
+                    self.crossing_measures.add(index)
                     self.warnings.append(
                         f"measure {index}: {p['role']} curve crosses the measure "
                         f"boundary (x=[{min(xs):.2f}, {max(xs):.2f}], width={width:.2f}) "
-                        f"— needs split variants (Phase 2)")
+                        f"— split variants generated")
         slack = 1.0
         for p in prims:
             xs = []
@@ -408,6 +410,102 @@ class MeasureExtractor:
                 self.warnings.append(
                     f"measure {index}: {p['type']} ({p['role']}) outside bounds "
                     f"x=[{min(xs):.1f}, {max(xs):.1f}], width={width:.1f}")
+
+
+def harvest_split_curves(musicxml_path, measures, warnings):
+    """Generate split tie/slur variants by re-rendering with forced breaks.
+
+    Firmware never does curve math, so the converter must supply the split
+    halves for curves that cross a measure boundary. Trick: re-render the
+    piece with a system break before EVERY measure (one measure per line) —
+    Verovio then engraves each crossing curve as two separate halves, which
+    we harvest and attach to the master measures as splitAtEnd (departing
+    half) and splitAtStart (continuation half). The layout stage picks the
+    variant based on where line breaks actually fall.
+    """
+    import verovio
+
+    tree = ET.parse(musicxml_path)
+    part = tree.getroot().find("part")
+    if part is None:
+        warnings.append("split render: no <part>, skipped")
+        return 0
+    for m in part.findall("measure")[1:]:
+        m.insert(0, ET.Element("print", {"new-system": "yes"}))
+
+    tk = verovio.toolkit()
+    opts = dict(VEROVIO_OPTIONS)
+    opts["breaks"] = "encoded"
+    tk.setOptions(opts)
+    if not tk.loadData(ET.tostring(tree.getroot(), encoding="unicode")):
+        warnings.append("split render: Verovio could not load modified MusicXML")
+        return 0
+    if tk.getPageCount() != 1:
+        warnings.append(
+            f"split render: {tk.getPageCount()} pages, expected 1 — skipped")
+        return 0
+    root = ET.fromstring(tk.renderToSVG(1))
+
+    ex = MeasureExtractor(parse_glyph_defs(root))
+    split_measures = []
+    for el in root.iter(f"{{{SVG_NS}}}g"):
+        if el.get("class") != "measure":
+            continue
+        rec = ex.extract(el, len(split_measures))
+        if rec:
+            split_measures.append(rec)
+    if len(split_measures) != len(measures):
+        warnings.append(
+            f"split render: {len(split_measures)} measures vs "
+            f"{len(measures)} in master render — skipped")
+        return 0
+
+    variants = 0
+    for master, split in zip(measures, split_measures):
+        s_curves = [p for p in split["primitives"] if p["type"] == "curve"]
+        if not s_curves:
+            continue
+        # The split render prepends clef/key inside every measure, shifting
+        # note positions. Align via the first notehead in each render so the
+        # curve endpoints land on the master's noteheads.
+        def first_notehead_x(rec):
+            xs = [p["x"] for p in rec["primitives"]
+                  if p["type"] == "glyph" and p["role"] == "notehead"]
+            return min(xs) if xs else None
+
+        mx0, sx0 = first_notehead_x(master), first_notehead_x(split)
+        if mx0 is None or sx0 is None:
+            warnings.append(
+                f"measure {master['index']}: cannot align split curves "
+                f"(no notehead), skipped")
+            continue
+        dx = round(mx0 - sx0, 4)
+        for c in s_curves:
+            c["points"] = [[round(x + dx, 4), y] for x, y in c["points"]]
+
+        m_curves = [p for p in master["primitives"] if p["type"] == "curve"]
+        at_end, at_start = [], []
+        for c in s_curves:
+            cx0 = min(pt[0] for pt in c["points"])
+            match = next(
+                (mc for mc in m_curves if mc["role"] == c["role"] and
+                 abs(min(pt[0] for pt in mc["points"]) - cx0) < 1.0), None)
+            if match is None:
+                # No master curve starts here: this is the continuation half
+                # of a curve that lives in the previous measure.
+                at_start.append(c)
+            elif max(pt[0] for pt in match["points"]) > master["width"] + 0.15:
+                # The matching master curve crosses the barline: this is its
+                # departing half.
+                at_end.append(c)
+            # else: a fully internal curve — same in both renders, no variant.
+        if at_end:
+            master["splitAtEnd"] = at_end
+            variants += len(at_end)
+        if at_start:
+            master["splitAtStart"] = at_start
+            variants += len(at_start)
+    return variants
 
 
 def attach_endings(root, extractor, measures, staff_space):
@@ -627,6 +725,11 @@ def extract(musicxml_path, out_dir):
     attach_endings(root, extractor, measures, staff_space)
     apply_vertical_extents(measures)
 
+    split_variants = 0
+    if extractor.crossing_measures:
+        split_variants = harvest_split_curves(
+            musicxml_path, measures, extractor.warnings)
+
     repeat_info, play_order = parse_repeats(
         musicxml_path, len(measures), extractor.warnings)
     for i, info in repeat_info.items():
@@ -659,6 +762,9 @@ def extract(musicxml_path, out_dir):
     if play_order is not None and play_order != list(range(len(measures))):
         print(f"  play order (unrolled repeats): "
               f"{' '.join(str(i + 1) for i in play_order)}")
+    if split_variants:
+        print(f"  {split_variants} split curve variant(s) generated for "
+              f"{len(extractor.crossing_measures)} crossing measure(s)")
     print(f"  raw SVG   -> {raw_svg_path}")
     print(f"  extracted -> {json_path}")
     if extractor.warnings:

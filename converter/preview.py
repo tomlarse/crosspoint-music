@@ -187,23 +187,20 @@ def render_reflow(doc, staff_space, page_width, margin, order=None):
         return max((p["x"] for p in header()), default=0) + 2.0
 
     usable = (page_width - 2 * margin) / staff_space  # in staff spaces
-    system_gap = 10 * staff_space
-    parts = [r.defs()]
-    x = 0.0  # staff spaces within current system
-    oy = margin + 2 * staff_space
-    system_start = True
 
+    # Phase 1: pack measures into systems, tracking the key signature.
+    systems = []  # each: {"header": prims or None, "hw": width, "entries": [(m, x)]}
+    cur = {"header": None, "hw": 0.0, "entries": []}
+    x = 0.0
     for i, m in enumerate(measures):
-        if not system_start and (x + m["width"]) > usable:
-            # New system: redraw clef + current key signature at line start.
-            oy += 4 * staff_space + system_gap
-            x = header_width()
-            for p in header():
-                parts.append(r.primitive(p, margin, oy))
-            parts.extend(r.staff_lines(margin, oy, header_width()))
-        parts.extend(r.measure(m, margin + x * staff_space, oy))
+        if cur["entries"] and (x + m["width"]) > usable:
+            systems.append(cur)
+            hdr = header()
+            hw = header_width()
+            cur = {"header": hdr, "hw": hw, "entries": []}
+            x = hw
+        cur["entries"].append((m, x))
         x += m["width"]
-        system_start = False
         # A measure carrying its own key signature (mid-piece change, e.g.
         # a trio modulation) replaces the signature used on later lines.
         if i > 0:
@@ -212,9 +209,56 @@ def render_reflow(doc, staff_space, page_width, margin, order=None):
             if new_key:
                 shift = key_anchor - min(p["x"] for p in new_key)
                 key_prims = [{**p, "x": round(p["x"] + shift, 4)} for p in new_key]
+    systems.append(cur)
 
-    height = oy + 4 * staff_space + margin + 2 * staff_space
+    # Phase 2: render, substituting split tie/slur halves at line breaks.
+    parts = [r.defs()]
+    system_gap = 10 * staff_space
+    oy = margin + 2 * staff_space
+    for si, system in enumerate(systems):
+        if system["header"]:
+            for p in system["header"]:
+                parts.append(r.primitive(p, margin, oy))
+            parts.extend(r.staff_lines(margin, oy, system["hw"]))
+        for mi, (m, mx) in enumerate(system["entries"]):
+            broken_after = (mi == len(system["entries"]) - 1
+                            and si < len(systems) - 1)
+            broken_before = mi == 0 and si > 0
+            parts.extend(render_measure_at_break(
+                r, m, margin + mx * staff_space, oy,
+                broken_before, broken_after))
+        oy += 4 * staff_space + system_gap
+
+    height = oy - system_gap + 4 * staff_space + margin + 2 * staff_space
     return svg_document("\n".join(parts), page_width, height, "black")
+
+
+def crosses_right_edge(prim, width):
+    return (prim["type"] == "curve"
+            and max(pt[0] for pt in prim["points"]) > width + 0.15)
+
+
+def render_measure_at_break(r, m, ox, oy, broken_before, broken_after):
+    """Render a measure, swapping in split curve variants at line breaks.
+
+    A whole tie/slur that reaches past the barline is only drawn when the
+    next measure sits on the same line; at a line break it is replaced by
+    its splitAtEnd half, and the continuation measure draws its
+    splitAtStart half.
+    """
+    out = r.staff_lines(ox, oy, m["width"])
+    for p in m["primitives"]:
+        if (broken_after and m.get("splitAtEnd")
+                and crosses_right_edge(p, m["width"])):
+            continue
+        out.append(r.primitive(p, ox, oy))
+    if broken_after:
+        for p in m.get("splitAtEnd", []):
+            out.append(r.primitive(p, ox, oy))
+    if broken_before:
+        for p in m.get("splitAtStart", []):
+            out.append(r.primitive(p, ox, oy))
+    return out
 
 
 def recolor_verovio_svg(svg_text, color):

@@ -34,6 +34,12 @@ MeasureRecord:
   PrimitiveList (default)
   PrimitiveList (split-at-start)  // optional, only if flags say so
   PrimitiveList (split-at-end)    // optional
+  // Split-variant generation validated in the converter prototype:
+  // re-render with forced breaks, harvest Verovio's own split halves.
+  // Layout rule: measure last on its line -> drop whole crossing curves,
+  // draw split-at-end; measure first on a continuation line -> also draw
+  // split-at-start. Verovio draws no arriving stub, so split-at-start is
+  // often empty for ties.
 
 Primitive (tagged union, u8 type):
   GLYPH  { u16 smuflCodepoint, i16 dx, i16 dy, u8 sizeClass }

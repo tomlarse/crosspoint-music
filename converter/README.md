@@ -145,9 +145,12 @@ public domain, but the engraving/arrangement may not be).
   changes need real SystemHeaderBlocks (Phase 2).
 - `yMin`/`yMax` use glyph anchor points, not glyph bounding boxes; proper
   vertical extents need SMuFL/Bravura metrics (Phase 2).
-- Cross-measure slurs/ties are not split. Detection: the out-of-bounds
-  warning. Generation of split variants needs more than detection — likely
-  re-rendering with forced system breaks or reading Verovio's MEI/timemap.
+- Cross-measure slurs/ties ARE split: the extractor re-renders once with a
+  system break before every measure and harvests Verovio's own split
+  halves as `splitAtEnd`/`splitAtStart` per measure (aligned via notehead
+  anchors); the reflow swaps them in at line breaks. Verovio draws only
+  the departing half at a break, so continuation stubs are absent — same
+  as Verovio's own output. Curves spanning 3+ measures keep a warning.
 - Repeat unrolling handles single-level repeats with numbered endings
   (the march case). D.C./D.S. al Fine jumps are not unrolled yet; volta
   brackets spanning multiple measures warn instead of splitting.
