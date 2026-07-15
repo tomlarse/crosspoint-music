@@ -54,7 +54,7 @@ PDF/image ─OMR──┘        │
 
 1. **Converter prototype** (desktop, no hardware — ~80% of the risk lives here):
    MusicXML in → per-measure primitive dump (JSON first, binary later) → SVG preview re-renderer for visual verification. Start with a simple monophonic melody.
-2. **`.cpmx` spec**: freeze v1 of the binary format (version field from day one, like `section.bin`). Convert the JSON dump to binary emit.
+2. **`.cpmx` spec**: ~~freeze v1~~ **done 2026-07-15** — v1 frozen and implemented (converter/cpmx_emit.py + cpmx_render.py reader/simulator); binary round-trips at 0.000% against the JSON pipeline on all test pieces.
 3. **Firmware viewer**: new activity + Bravura glyphs via the EpdFont pipeline + measure-packing layout + `.crosspoint` caching. Follow all existing HAL/heap/activity-lifecycle rules in the root CLAUDE.md.
 4. **OMR pipeline**: wire Audiveris/oemer in front of the converter for PDF/image input.
 

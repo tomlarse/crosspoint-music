@@ -28,10 +28,19 @@ python3 -m venv .venv
 #    -> out/simple-melody.reflow.svg     (measures re-packed into systems)
 #    -> out/simple-melody.compare.html   (side-by-side report)
 
-# 3. Inspect (file:// is blocked in some browsers for the pixel diff's fetch)
+# 3. Emit the .cpmx v1 binary and round-trip it through the reader/simulator
+.venv/bin/python cpmx_emit.py out/simple-melody.primitives.json
+#    -> out/simple-melody.cpmx
+.venv/bin/python cpmx_render.py out/simple-melody.cpmx out/simple-melody.primitives.json
+#    -> out/simple-melody.cpmx.reflow.svg   (layout from the BINARY only)
+#    -> out/simple-melody.cpmx.unrolled.svg (if the piece has repeats)
+
+# 4. Inspect (file:// is blocked in some browsers for the pixel diff's fetch)
 python3 -m http.server 8643            # from converter/
 # open http://localhost:8643/out/simple-melody.compare.html
 # open http://localhost:8643/pixeldiff.html?stem=out/simple-melody
+# round-trip check (JSON reflow vs binary reflow):
+# open http://localhost:8643/pixeldiff.html?a=out/simple-melody.reflow.svg&b=out/simple-melody.cpmx.reflow.svg
 ```
 
 ## What the pipeline validates
@@ -54,6 +63,12 @@ robustly. The prototype measures this three ways:
 3. **Reflow render**: `preview.py` re-packs measures into systems of a given
    width, re-inserting the clef/key-signature header at each system start —
    the exact layout algorithm the firmware will run.
+4. **Binary round-trip**: `cpmx_emit.py` writes the `.cpmx` v1 binary
+   (spec: [docs/music/cpmx-format-draft.md](../docs/music/cpmx-format-draft.md));
+   `cpmx_render.py` parses it independently and lays out from binary data
+   alone (widths, SystemHeaderBlocks, split variants, playOrder). Binary
+   reflow vs JSON reflow pixel-diffs at 0.000% on all four test pieces;
+   the real march part is 12.7 KB as .cpmx (vs 181 KB JSON).
 
 ## Primitive model (JSON, precursor of `.cpmx`)
 

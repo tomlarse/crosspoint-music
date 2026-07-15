@@ -41,10 +41,20 @@ function inkMask(img, w, h) {
 }
 
 (async () => {
-  const stem = new URLSearchParams(location.search).get("stem") || "out/simple-melody";
+  // Default: compare Verovio's original vs the primitive re-render for a
+  // ?stem=... pair. Alternatively pass explicit files: ?a=x.svg&b=y.svg
+  // (e.g. JSON reflow vs .cpmx binary reflow for the round-trip check).
+  const q = new URLSearchParams(location.search);
+  let urlA, urlB, stripA;
+  if (q.get("a") && q.get("b")) {
+    urlA = q.get("a"); urlB = q.get("b"); stripA = false;
+  } else {
+    const stem = q.get("stem") || "out/simple-melody";
+    urlA = stem + ".verovio.svg"; urlB = stem + ".rerender.svg"; stripA = true;
+  }
   const [orig, rerender] = await Promise.all([
-    loadSvgImage(stem + ".verovio.svg", true),
-    loadSvgImage(stem + ".rerender.svg", false),
+    loadSvgImage(urlA, stripA),
+    loadSvgImage(urlB, false),
   ]);
   const w = Math.max(orig.naturalWidth, rerender.naturalWidth);
   const h = Math.max(orig.naturalHeight, rerender.naturalHeight);
