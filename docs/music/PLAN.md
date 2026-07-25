@@ -83,6 +83,36 @@ Decided during Phase 1 (2026-07-15):
 - **Repeats/voltas/lyrics/chord symbols** (2026-07-15, use-case decision): repeats + voltas are v1 *with navigation* (see Use case); text under staff (drill cues/lyrics) v1.x via TEXT primitive; chord symbols out.
 - **How Verovio emits voltas** (verified 2026-07-15): repeat dots are SMuFL glyph E044 inside the owning measure's barLine group — harvested for free. Volta brackets are `<g class="ending">` *siblings* of measures (milestone pattern) containing 3 straight lines + a bold text label; the converter attaches them to the right measure by bracket midpoint. TEXT primitive implemented for the labels.
 
+## Feature backlog (from field testing, 2026-07-25)
+
+- **Setlists / march orders** ("marsjrekkefølge"): a playlist of pieces the
+  reader flows through in order — page forward past the end of one piece
+  and the next one's first page appears. Bands keep a few semi-fixed
+  standard orders (street parade, drill show) that change per season, plus
+  ad-hoc orders per gig, so: multiple named setlists, easy to switch.
+  Design sketch: a setlist is a small text file on SD listing `.cpmx`
+  paths in order; the file browser shows setlists as openable items; the
+  sheet music library app becomes the comfortable place to author them,
+  with on-device reordering as a later nicety. Open question: the
+  on-device UI for picking/switching setlists mid-gig with gloves on.
+- **Cover page** per piece: title, composer, arranger shown when opening
+  (and as the boundary between pieces in a setlist). Requires format
+  metadata beyond the title — composer/arranger strings in the header →
+  **format v2** (bump version byte, run the conformance test). MusicXML
+  carries these fields; the converter already parses the file.
+- **Auto page turn at marching tempo** (nice-to-have): marches are played
+  at a known tempo (e.g. 112 BPM). Beats per page = sum of each measure's
+  beat count, so the viewer can compute when to turn. Needs per-measure
+  beat counts in the format (u8 per measure — bundle with the v2 change).
+  UX sketch: enabled per setlist/piece with a BPM setting; arming happens
+  when you page past the cover, so the first real page turn is already on
+  tempo. Manual page turns stay live as override.
+- **XXS rendering floor**: at 5 px staff space, positions between staff
+  lines land on half pixels and must round — notes sit visibly off-center
+  and glyphs pixelate. 5 px is the practical minimum for now; if smaller
+  is ever wanted, it needs sub-pixel-aware placement (e.g. even-only staff
+  spaces or 2x supersampled glyph variants).
+
 Still open:
 
 - ~~**`.cpmx` conformance test**~~ **done 2026-07-25**
