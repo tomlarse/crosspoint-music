@@ -98,6 +98,7 @@ class CpmxReader {
   bool isOpen() const { return open_; }
 
   uint16_t measureCount() const { return measureCount_; }
+  uint8_t headerBlockCount() const { return headerBlockCount_; }
   const char* title() const { return title_ ? title_.get() : ""; }
 
   /// Performance sequence length (repeats unrolled). Falls back to

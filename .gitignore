@@ -32,3 +32,4 @@ converter/out/
 converter/tools/
 converter/testdata/*.pdf
 converter/fontsrc/
+test/conformance/build/

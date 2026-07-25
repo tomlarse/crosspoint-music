@@ -145,6 +145,20 @@ Lessons from the first real part (Under blågul fana, Bb-trompet 3):
 The source PDF page and OMR output stay out of git (the composition is
 public domain, but the engraving/arrangement may not be).
 
+## Conformance test
+
+The firmware's C++ reader is an independent implementation of the format.
+From the repo root:
+
+```bash
+python3 test/conformance/run_conformance.py
+```
+
+builds a host-side dump tool around `lib/Cpmx/CpmxReader`, decodes every
+test piece with both readers, compares field-by-field, and feeds both a
+corruption matrix where they must agree (reject, or accept identically).
+Run it before any change to the format, the emitter, or either reader.
+
 ## Known limitations (fine for Phase 1)
 
 - Monophonic, single staff only (per plan); exactly 5 staff lines assumed

@@ -25,25 +25,34 @@ from cpmx_emit import (COORD_FP, SCALE_FP, MAGIC, VERSION,
 from preview import SvgRenderer, render_measure_at_break, svg_document
 
 
+MAX_PRIMS_PER_LIST = 4096
+MAX_MEASURES = 4096
+MAX_PLAY_ORDER = 16384
+MAX_TITLE_LEN = 256
+
+
 class Reader:
     """Bounds-checked reader — models the defensive contract the firmware
-    reader must enforce against corrupt/truncated files on the SD card."""
+    reader must enforce against corrupt/truncated files on the SD card.
+    A `limit` bounds reads to one record (a record ends where the next
+    offset begins, per the spec's validation rules)."""
 
-    def __init__(self, data):
+    def __init__(self, data, limit=None):
         self.data = data
         self.pos = 0
+        self.limit = len(data) if limit is None else limit
 
     def take(self, fmt):
         size = struct.calcsize("<" + fmt)
-        if self.pos + size > len(self.data):
-            raise ValueError(f"truncated file: read past EOF at offset {self.pos}")
+        if self.pos + size > self.limit:
+            raise ValueError(f"truncated read at offset {self.pos}")
         vals = struct.unpack_from("<" + fmt, self.data, self.pos)
         self.pos += size
         return vals if len(vals) > 1 else vals[0]
 
     def take_bytes(self, n):
-        if self.pos + n > len(self.data):
-            raise ValueError(f"truncated file: read past EOF at offset {self.pos}")
+        if self.pos + n > self.limit:
+            raise ValueError(f"truncated read at offset {self.pos}")
         b = self.data[self.pos:self.pos + n]
         self.pos += n
         return b
@@ -98,6 +107,8 @@ def read_primitive(r):
 
 def read_prim_list(r):
     n = r.take("H")
+    if n > MAX_PRIMS_PER_LIST:
+        raise ValueError(f"primitive list of {n} exceeds ceiling")
     return [read_primitive(r) for _ in range(n)]
 
 
@@ -112,10 +123,12 @@ def load_cpmx(path):
         sys.exit(f"error: unsupported CPMX version {version}")
     if flags != 0:
         sys.exit(f"error: nonzero reserved header flags 0x{flags:02x}")
-    if n_measures == 0:
-        sys.exit("error: empty score (measureCount 0)")
+    if n_measures == 0 or n_measures > MAX_MEASURES:
+        sys.exit(f"error: measureCount {n_measures} outside [1, {MAX_MEASURES}]")
     if n_blocks == 0 or n_blocks > 255:
         sys.exit(f"error: headerBlockCount {n_blocks} outside [1, 255]")
+    if n_order > MAX_PLAY_ORDER or title_len > MAX_TITLE_LEN:
+        sys.exit("error: playOrder or title exceeds ceiling")
     title = r.take_bytes(title_len).decode("utf-8")
     play_order = [r.take("H") for _ in range(n_order)]
     if any(i >= n_measures for i in play_order):
@@ -128,17 +141,23 @@ def load_cpmx(path):
                      f"the file (offset {off})")
         prev = off
 
+    # Per the spec, a record is bounded by the next offset (EOF for the
+    # last); reads past that bound are invalid.
+    def record_reader(i):
+        end = offsets[i + 1] if i + 1 < len(offsets) else len(data)
+        rr = Reader(data, limit=end)
+        rr.pos = offsets[i]
+        return rr
+
     blocks = []
-    for off in offsets[:n_blocks]:
-        br = Reader(data)
-        br.pos = off
+    for i in range(n_blocks):
+        br = record_reader(i)
         advance = br.take("H") / COORD_FP
         blocks.append({"advance": advance, "primitives": read_prim_list(br)})
 
     measures = []
-    for off in offsets[n_blocks:]:
-        mr = Reader(data)
-        mr.pos = off
+    for i in range(n_blocks, len(offsets)):
+        mr = record_reader(i)
         width, y_min, y_max, header_idx, flags = mr.take("HhhBB")
         if header_idx >= n_blocks:
             sys.exit(f"error: systemHeaderIdx {header_idx} >= "

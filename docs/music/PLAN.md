@@ -85,13 +85,13 @@ Decided during Phase 1 (2026-07-15):
 
 Still open:
 
-- **`.cpmx` conformance test** (task, added 2026-07-25 after the RECT size
-  bug): the C++ reader is a third implementation of the format and was never
-  diffed against the Python reference — a 2-byte skip-table mismatch shipped
-  and stalled paging mid-piece. Build a host-side test that decodes every
-  test `.cpmx` with `lib/Cpmx/CpmxReader` (native build) and compares
-  field-by-field against `cpmx_render.py` output. Must run before any
-  format change.
+- ~~**`.cpmx` conformance test**~~ **done 2026-07-25**
+  (`python3 test/conformance/run_conformance.py`): decodes every test piece
+  with the firmware's CpmxReader (host build via stubs) and the Python
+  reference, compares field-by-field, and runs a corruption matrix
+  (truncations + bit flips) where both readers must agree on
+  reject-or-identical-decode. Verified to catch the RECT skip-table bug
+  class. Must run before any format change.
 - How ABC ingest enters: Verovio reads ABC natively, so possibly free.
 - D.C./D.S. al Fine: extend the unroller with jump directives (Fine, segno, coda) — same playOrder mechanism, needs `<sound>`/direction parsing.
 - Volta brackets spanning multiple measures need per-measure splitting (same family as slur splits).
