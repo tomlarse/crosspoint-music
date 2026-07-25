@@ -104,6 +104,10 @@ void MusicReaderActivity::onEnter() {
 
 void MusicReaderActivity::applyStaffSize() {
   switch (SETTINGS.musicStaffSize) {
+    case CrossPointSettings::MUSIC_SIZE_XXS:
+      staffSpacePx_ = 5;
+      musicFontId_ = MUSIC_10_FONT_ID;
+      break;
     case CrossPointSettings::MUSIC_SIZE_XS:
       staffSpacePx_ = 6;
       musicFontId_ = MUSIC_12_FONT_ID;

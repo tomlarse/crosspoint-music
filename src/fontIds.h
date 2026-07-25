@@ -12,6 +12,7 @@
 #define UI_10_FONT_ID (22918846)
 #define UI_12_FONT_ID (1635686837)
 #define SMALL_FONT_ID (674098198)
+#define MUSIC_10_FONT_ID (173076072)
 #define MUSIC_12_FONT_ID (1644982688)
 #define MUSIC_15_FONT_ID (-686859516)
 #define MUSIC_19_FONT_ID (361814778)
@@ -31,6 +32,7 @@ static_assert(NOTOSANS_18_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(UI_10_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(UI_12_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(SMALL_FONT_ID != 0, "Font ID collision with sentinel");
+static_assert(MUSIC_10_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(MUSIC_12_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(MUSIC_15_FONT_ID != 0, "Font ID collision with sentinel");
 static_assert(MUSIC_19_FONT_ID != 0, "Font ID collision with sentinel");

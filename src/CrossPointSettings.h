@@ -175,15 +175,16 @@ class CrossPointSettings {
 
   enum TILT_PAGE_TURN { TILT_OFF = 0, TILT_NORMAL = 1, TILT_NVERTED = 2, TILT_PAGE_TURN_COUNT };
 
-  // Sheet music staff size (.cpmx viewer): staff space 6/8/10/12/16 px.
-  // Hardware testing showed 10 px is comfortably readable on the X4, so the
-  // ladder extends two steps below it.
+  // Sheet music staff size (.cpmx viewer): staff space 5/6/8/10/12/16 px.
+  // Hardware testing keeps pushing the readable floor down — the X4 panel
+  // is sharp enough that 6 px reads fine in hand; 5 px is the experiment.
   enum MUSIC_STAFF_SIZE {
-    MUSIC_SIZE_XS = 0,
-    MUSIC_SIZE_S = 1,
-    MUSIC_SIZE_M = 2,
-    MUSIC_SIZE_L = 3,
-    MUSIC_SIZE_XL = 4,
+    MUSIC_SIZE_XXS = 0,
+    MUSIC_SIZE_XS = 1,
+    MUSIC_SIZE_S = 2,
+    MUSIC_SIZE_M = 3,
+    MUSIC_SIZE_L = 4,
+    MUSIC_SIZE_XL = 5,
     MUSIC_STAFF_SIZE_COUNT
   };
 
