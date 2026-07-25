@@ -1,270 +1,153 @@
-# CrossPoint Reader
+# CrossPoint Music
 
-[![Fund contributors](https://img.shields.io/badge/%F0%9F%91%91_Fund_contributors-royalty.dev-BB953A?style=for-the-badge&labelColor=1a1a1a)](https://app.royalty.dev/crosspoint-reader/crosspoint-reader)
+CrossPoint Music is open-source e-reader firmware that displays sheet
+music, reformatted to fit the screen one measure at a time rather than
+shown as a fixed page image.
 
-CrossPoint is open-source e-reader firmware - community-built, fully hackable, free forever. It's maintained by a growing community of developers and readers who believe your device should do what you want - not what a manufacturer decided for you.
+**Now running on:** ESP32C3-based Xteink [X4](https://www.xteink.com/products/xteink-x4).
 
-**Now running on:** ESP32C3-based Xteink [X4](https://www.xteink.com/products/xteink-x4) and [X3](https://www.xteink.com/products/xteink-x3).
+It is made for individual part sheet music, read on-instrument: one voice,
+one staff. Page turns follow the music, so at a repeat the next page takes
+you back to the right measure, and the second time through you get the
+second house. The device remembers your place in each piece, and the
+notation size can be changed while you read.
 
-![CrossPoint Reader running on Xteink device](./docs/images/cover.jpg)
+![First page of a march rendered by the firmware](docs/music/images/viewer-page1.png)
 
-> If you're planning to buy an Xteink device, consider purchasing an **X3/X4 Developer Edition** through https://crosspointreader.com. CrossPoint receives a small share of each sale, helping fund development costs.
+## Can I use this today?
 
-## What can CrossPoint do?
+The music side is under active development; it runs in the desktop
+simulator and hardware testing is next. You need an Xteink device, a
+microSD card, and `.cpmx` music files, converted from MusicXML or PDF with
+the command-line tools described below. The device still works as a normal
+e-book reader; this firmware adds music on top.
 
-- **Reader engine**: EPUB 2/3 rendering with embedded-style option, image handling, hyphenation, kerning, chapter navigation, footnotes, bookmarks, go-to-percent, auto page turn, orientation control, focus reading, KOReader progress sync and more. 
+## What the viewer does
 
-- **Various formats**: native handling for `.epub`, `.xtc/.xtch`, `.txt`, and `.bmp`.
+![Volta brackets and repeats rendered by the firmware](docs/music/images/viewer-volta.png)
 
-- **Screenshots.**
+- Measure-aware reflow at three staff sizes. Pick Small, Medium or Large in
+  settings, or cycle them with the Confirm button while reading.
+- Page turns follow the music, not the paper. The converter resolves
+  repeats and voltas ahead of time, so paging forward always shows what
+  you play next. You still see the notation as engraved, repeat signs and
+  volta brackets included, so you know where you are in the form.
+- Ties and slurs split correctly at line breaks, with both halves
+  pre-engraved so the device never draws an awkward half-curve.
+- The device saves your place in each piece and takes you back there when
+  you reopen it.
+- Landscape is the default orientation in this fork. Scores read better
+  that way.
 
-- **Custom fonts**: install your favorite fonts on the SD card.
+## Getting music onto the device
 
-- **Tilt page turn (X3 only)**.
+The device reads `.cpmx` files, produced from MusicXML (which MuseScore,
+Dorico and most notation programs export) or from PDFs via optical music
+recognition.
 
-- **Library workflow**: folder browser, hidden-file toggle, long-press delete, recent books, SD-cache management.
+Conversion is command-line only for now, described below. The plan is a
+desktop sheet music library app with conversion and device sync built in:
+import your PDFs and MusicXML files, let the library convert them, and sync
+your music to the device, the way Calibre with the CrossPoint plugin works
+for books. The files are small — a full 92-measure march is 12.7 KB.
 
-- **Wireless workflows**:
-  
-  - File transfer web UI
-  - EPUB Optimizer
-  - Web settings UI/API (edit many device settings from browser)
-  - WebSocket fast uploads
-  - WebDAV handler
-  - AP mode (hotspot) and STA mode (join existing Wi-Fi), both with QR helpers
-  - Calibre wireless connect flow
-  - OPDS browser with saved servers (up to 8), search, pagination, and direct download
-  - OTA update checks and installs from GitHub releases
+## How it works
 
-- **Customization**: multiple themes (Classic, Lyra, Lyra Extended, RoundedRaff), sleep screen modes, front/side button remapping, status bar controls, power-button behavior, refresh cadence, and more.
+Music has a property text already exploits: it wraps. Line breaks happen
+between measures, exactly like text breaks between words. If every measure
+arrives pre-engraved as a self-contained unit with a known width, the device
+only needs to pack measures into lines. That is the same job the EPUB engine
+already does with words.
 
-- **Localization**: 24 UI languages and counting. RTL support.
+So the heavy lifting happens offline, and the firmware stays small:
 
-### Coming soon:
+```
+PDF ──OMR──> MusicXML ──converter──> .cpmx ──SD card──> firmware viewer
+                          (Verovio)
+```
 
-- Dictionary lookup — inline word lookup without leaving the reader.
+The offline converter is desktop Python. It renders MusicXML with
+[Verovio](https://www.verovio.org/), harvests the engraving into per-measure
+primitives, and emits `.cpmx`. PDFs go through
+[Audiveris](https://audiveris.github.io/audiveris/) OMR first.
 
-- More themes.
+The viewer on the device streams measures from SD one record at a time,
+packs them into systems, and blits pre-rasterized
+[Bravura](https://github.com/steinbergmedia/bravura) glyphs. The ESP32-C3
+has 380 KB of RAM and never does any engraving math.
 
-- Much more! stay tuned.
+## Converting music (command line, for now)
 
----
-
-## USB-locked devices (Xteink Unlocker)
-
-Some Xteink units purchased from third-party stores (e.g. AliExpress) ship with USB flashing locked from the factory.
-If your device is locked, you will need to use the **Xteink Unlocker** tool available at
-https://crosspointreader.com/#unlock-tool before you can flash CrossPoint.
-
-**You do not need this tool if you bought your device directly from xteink.com.** Those units are not locked.
-
-**Not sure if your device is locked?** Power it on, connect the USB-C cable, and try flashing via the web flasher first (see
-[Install firmware](#install-firmware) below). If the browser's serial device picker does not show your device, try a different
-USB port or browser before assuming the device is locked. Only reach for the unlocker if the device still doesn't appear.
-
-> ### ⚠️ WARNING: READ THIS BEFORE USING THE UNLOCKER ⚠️
-> 
-> **The only officially supported firmwares in the unlock tool are CrossPoint and CrossInk.**
-> 
-> Flashing any other firmware on a USB-locked device may **permanently brick the device** or leave it **permanently
-> stuck on that firmware with no recovery path**. Once USB flashing is re-locked, your only way back is via OTA, and if
-> the firmware you flashed doesn't support OTA, **there is no way out**.
-
-## Install firmware
-
-### Web installer (recommended)
-
-1. Connect your device to your computer via USB-C and wake/unlock the device
-2. Go to https://crosspointreader.com/#flash-tools, select device (X3 or X4), and choose an official CrossPoint release.
-
-### Web installer (specific version)
-
-1. Connect your device to your computer via USB-C and wake/unlock the device
-2. Download a `firmware.bin` from [Releases](https://github.com/crosspoint-reader/crosspoint-reader/releases), local build, or continuous integration artifact.
-3. Go to https://crosspointreader.com/#flash-tools, select device (X3 or X4), click "Custom .bin" and upload a `firmware.bin`.
-
-### Revert to Official Firmware
-
-To revert to the official firmware, you can also flash the latest official firmware using https://crosspointreader.com/#flash-tools.
-
-### Command line
-
-1. Install [`esptool`](https://github.com/espressif/esptool):
+You need Python 3 and the converter directory:
 
 ```bash
-pip install esptool
+cd converter
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+# From MusicXML (exported from MuseScore, Dorico, etc.)
+.venv/bin/python extract.py mypiece.musicxml
+.venv/bin/python cpmx_emit.py out/mypiece.primitives.json
+# -> out/mypiece.cpmx  — copy it to the SD card and open it like a book
 ```
 
-2. Download `firmware.bin` from the [releases page](https://github.com/crosspoint-reader/crosspoint-reader/releases).
-3. Connect your device via USB-C.
-4. Find the device port. On Linux, run `dmesg` after connecting. On macOS:
+For PDFs, run [Audiveris](https://audiveris.github.io/audiveris/) first to
+get MusicXML. Two practical notes from converting real parts: rasterize at
+300 DPI, because key signatures get misread at lower resolutions (Audiveris
+caps input at 20 Mpx, so crop large pages down to their content), and expect
+to correct the occasional OMR misread in the MusicXML before converting.
+The extractor warns about suspicious content, such as chords in a part that
+should be monophonic, to point you at what needs fixing.
+
+How faithful the conversion is, and the tooling for verifying it, is
+covered in [converter/README.md](converter/README.md).
+
+## Developing without a device
+
+The [crosspoint-simulator](https://github.com/crosspoint-reader/crosspoint-simulator)
+runs the whole firmware natively in an SDL2 window:
 
 ```bash
-log stream --predicate 'subsystem == "com.apple.iokit"' --info
+brew install sdl2        # or apt install libsdl2-dev
+pio run -e simulator && .pio/build/simulator/program
 ```
 
-5. Flash:
+The simulated SD card is `./fs_/`. Arrow keys page, Enter cycles staff size,
+Esc goes back. Two environment variables help with visual testing:
+`CROSSPOINT_MUSIC_SHOT=1` dumps every rendered page as BMP to
+`fs_/screenshots/`, and `CROSSPOINT_MUSIC_AUTOPAGE=1` pages through the
+whole piece by itself.
 
-```bash
-esptool.py --chip esp32c3 --port /dev/ttyACM0 --baud 921600 write_flash 0x10000 /path/to/firmware.bin
-```
+## Where things live
 
-Adjust `/dev/ttyACM0` to match your system.
+| Path | What |
+|---|---|
+| [docs/music/PLAN.md](docs/music/PLAN.md) | Project plan, decisions, status |
+| [docs/music/cpmx-format-draft.md](docs/music/cpmx-format-draft.md) | The frozen `.cpmx` v1 binary format spec |
+| [converter/](converter/README.md) | MusicXML → primitives → `.cpmx` pipeline |
+| [lib/Cpmx/](lib/Cpmx/CpmxReader.h) | Firmware-side format reader |
+| [src/activities/reader/MusicReaderActivity.cpp](src/activities/reader/MusicReaderActivity.cpp) | The viewer |
 
-### Manual
+## Roadmap
 
-See [Development quick start](#development-quick-start) below.
+Single staff, single voice is deliberate: this firmware is for individual
+parts, not full scores. On the roadmap in
+[PLAN.md](docs/music/PLAN.md): hardware verification, D.C./D.S. al Fine
+jumps, text under the staff (drill cues), OMR correction tooling, and the
+sheet music library app mentioned above.
 
----
+## Relationship to upstream
 
-## Custom SD-card fonts
+This is a fork of
+[CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader),
+the open-source e-reader firmware for the Xteink X4. The fork tracks
+upstream (`git fetch upstream`) and keeps its e-book functionality intact:
+EPUB, TXT, wireless transfer, OPDS and themes all still work. The music
+work is not intended as an upstream PR; it lives here. For everything
+inherited from upstream (building, flashing, the unlocker for USB-locked
+devices, wireless features, contributing), see the
+[upstream README](https://github.com/crosspoint-reader/crosspoint-reader).
 
-Convert your own TTF/OTF files into `.cpfont` files that load from the SD card. No firmware reflash is needed.
-
-1. Go to https://crosspointreader.com/fonts and open the "SD-card font builder" form.
-2. Upload up to four styles (regular, bold, italic, bold-italic), set the family name, point sizes, and Unicode range.
-3. Download the generated `.cpfont` files.
-4. Copy them to your SD card under `/fonts/YourFont/` (or `/.fonts/YourFont/` to hide the folder).
-5. Select the font on the device from the font settings.
-
-Conversion runs the firmware repo's `lib/EpdFont/scripts/fontconvert_sdcard.py` script unmodified, so output matches a local host build.
-
----
-
-## Documentation
-
-- [User Guide](./USER_GUIDE.md)
-- [Web server usage](./docs/webserver.md)
-- [Web server endpoints](./docs/webserver-endpoints.md)
-- [Project scope](./SCOPE.md)
-- [Contributing docs](./docs/contributing/README.md)
-
----
-
-## Development quick start
-
-### Prerequisites
-
-- [pioarduino](https://github.com/pioarduino/pioarduino) or VS Code + pioarduino plugin
-- Python 3.8+
-- `clang-format` 21
-- USB-C cable supporting data transfer
-
-### Setup
-
-```bash
-git clone --recursive https://github.com/crosspoint-reader/crosspoint-reader
-cd crosspoint-reader
-
-# if cloned without --recursive:
-git submodule update --init --recursive
-```
-
-### Build / flash / monitor
-
-```bash
-pio run --target upload
-```
-
-### Contributor pre-PR checks
-
-```bash
-./bin/clang-format-fix
-pio check -e default
-pio run -e default
-```
-
-### Debugging
-
-After flashing the new features, it’s recommended to capture detailed logs from the serial port.
-
-First, make sure all required Python packages are installed:
-
-```python
-python3 -m pip install pyserial colorama matplotlib
-```
-
-After that run the script:
-
-```sh
-# For Linux
-# This was tested on Debian and should work on most Linux systems.
-python3 scripts/debugging_monitor.py
-
-# For macOS
-python3 scripts/debugging_monitor.py /dev/cu.usbmodem2101
-```
-
-Minor adjustments may be required for Windows.
-
----
-
-## Internals
-
-CrossPoint Reader is pretty aggressive about caching data down to the SD card to minimise RAM usage. The ESP32-C3 only has ~380KB of usable RAM, so we have to be careful. A lot of the decisions made in the design of the firmware were based on this constraint.
-
-### Data caching
-
-The first time chapters of a book are loaded, they are cached to the SD card. Subsequent loads are served from the
-cache. This cache directory exists at `.crosspoint` on the SD card. The structure is as follows:
-
-```text
-.crosspoint/
-├── epub_<hash>/         # one directory per book, named by content hash
-│   ├── progress.bin     # reading position (chapter, page, etc.)
-│   ├── cover.bmp        # generated cover image
-│   ├── book.bin         # metadata: title, author, spine, TOC
-│   ├── css_rules.cache  # parsed CSS rule cache
-│   ├── img_*            # rendered image cache files
-│   └── sections/        # per-chapter layout cache
-│       ├── 0.bin
-│       ├── 1.bin
-│       └── ...
-├── settings.json        # device settings
-├── state.json           # resume/runtime state
-└── recent.json          # recent books list
-```
-
-Removing `/.crosspoint` clears all cached metadata and forces a full regeneration on next open. Book deletes, overwrites, and moves done through the firmware or web UI clear or re-key matching caches; manual SD-card edits may leave stale cache directories behind.
-
-For more details on the internal file structures, see the [file formats document](./docs/file-formats.md).
-
----
-
-## Contributing
-
-Contributions are welcome. If you're new to the codebase, start with the [contributing docs](./docs/contributing/README.md). For things to work on, check the [ideas discussion board](https://github.com/crosspoint-reader/crosspoint-reader/discussions/categories/ideas) — leave a comment before starting so we don't duplicate effort.
-
-Everyone here is a volunteer, so please be respectful and patient. For governance and community expectations, see [GOVERNANCE.md](./GOVERNANCE.md).
-
----
-
-## Community forks
-
-One of the best things about open source is that anyone can take the code in a different direction. If you need something outside CrossPoint's [scope](./SCOPE.md), check out the community forks:
-
-- [CrossInk](https://github.com/uxjulia/CrossInk) — Typography and reading tracking: Bionic Reading (bolds word stems to create fixation points), guide dots between words, improved paragraph indents, and replaces the default fonts with ChareInk/Lexend/Bitter.
-
-- [papyrix-reader](https://github.com/bigbag/papyrix-reader) — Adds FB2 and MD format support. Actively maintained with Arabic script support. Custom themes via SD card.
-
-- ~~[crosspet](https://github.com/trilwu/crosspet) — A Vietnamese fork that adds a Tamagotchi-style virtual chicken that grows based on your reading milestones (pages read, streaks, care). Also: Flashcards, Weather, Pomodoro timer, and mini-games.~~ (Unmaintained)
-
-- [crosspoint-reader-cjk](https://github.com/aBER0724/crosspoint-reader-cjk) — Purpose-built for Chinese, Japanese, and Korean reading.
-
-- [inx](https://github.com/obijuankenobiii/inx) — Completely reimagines the user interface with tabbed navigation.
-
-- ~~[PlusPoint](https://github.com/ngxson/pluspoint-reader) — custom JS apps support.~~ (Unmaintained)
-
-- [crosspoint-reader-papers3](https://github.com/juicecultus/crosspoint-reader-papers3) — Crosspoint port for M5Stack Paper S3. 
-
-- [t5s3-reader](https://github.com/ShallowGreen123/t5s3-reader) — Crosspoint port for LilyGo T5 ePaper S3 / T5S3 4.7-inch e-paper device.
-
-**Note:** Many of these features will make their way into CrossPoint over time. We maintain a slower pace to ensure rock-solid stability and squash bugs before they reach your device.
-
-Want to build your own device? Be sure to check out the [de-link](https://github.com/iandchasse/de-link) project.
-
----
-
-CrossPoint Reader is **not affiliated with Xteink or any device manufacturer**.
-
-Huge shoutout to [diy-esp32-epub-reader](https://github.com/atomic14/diy-esp32-epub-reader), which inspired this project.
+Music glyphs come from [Bravura](https://github.com/steinbergmedia/bravura)
+(SIL OFL). Verovio (LGPL) and Audiveris (AGPL) run on the desktop only;
+nothing of them ships in the firmware.

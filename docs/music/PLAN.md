@@ -56,7 +56,8 @@ PDF/image ─OMR──┘        │
    MusicXML in → per-measure primitive dump (JSON first, binary later) → SVG preview re-renderer for visual verification. Start with a simple monophonic melody.
 2. **`.cpmx` spec**: ~~freeze v1~~ **done 2026-07-15** — v1 frozen and implemented (converter/cpmx_emit.py + cpmx_render.py reader/simulator); binary round-trips at 0.000% against the JSON pipeline on all test pieces.
 3. **Firmware viewer**: new activity + Bravura glyphs via the EpdFont pipeline + measure-packing layout + `.crosspoint` caching. Follow all existing HAL/heap/activity-lifecycle rules in the root CLAUDE.md.
-4. **OMR pipeline**: wire Audiveris/oemer in front of the converter for PDF/image input.
+4. **OMR pipeline**: wire Audiveris/oemer in front of the converter for PDF/image input. Spiked early (works, see converter/README.md); what remains is packaging.
+5. **Sheet music library app** (vision, 2026-07-25): a desktop "music library" application with conversion and device sync built in — the Calibre + CrossPoint-plugin model, but for scores. Import PDF/MusicXML into the library, conversion (incl. OMR) happens inside the app, and the repertoire syncs to the device over USB/Wi-Fi. Today's CLI converter becomes the app's backend; the firmware's existing wireless transfer endpoints are the sync target. One band member curates, everyone gets the same small `.cpmx` files.
 
 ## Known hard problems
 
