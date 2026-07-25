@@ -25,10 +25,14 @@ constexpr int MARGIN_PX = 8;
 constexpr int32_t CROSSING_SLACK_FP = 10;  // 0.15 ss in 1/64 units
 constexpr uint8_t MAX_POLY_POINTS = 255;
 
-/// Vertical layout (viewer policy per the spec): staff top sits this many
-/// staff spaces below the system origin, and systems advance by this pitch.
-constexpr int SYSTEM_TOP_SS = 4;
-constexpr int SYSTEM_PITCH_SS = 12;
+/// Vertical layout (viewer policy per the spec): systems are placed from
+/// their actual per-measure yMin/yMax extents so tall content (volta
+/// brackets, slurs, dynamics) neither clips at the page top nor collides
+/// with the neighbouring system. Extents are glyph-anchor based, so pad.
+constexpr int SYSTEM_PAD_SS = 1;             // headroom beyond yMin/yMax, each side
+constexpr int SYSTEM_GAP_SS = 2;             // air between systems
+constexpr int32_t MIN_Y_FLOOR_FP = -2 * 64;  // at least 2 ss above the staff
+constexpr int32_t MAX_Y_FLOOR_FP = 6 * 64;   // at least 2 ss below it
 
 void encodeUtf8(const uint16_t codepoint, char out[4]) {
   // SMuFL codepoints live in the BMP PUA (U+E000..): always 3 UTF-8 bytes.
@@ -114,7 +118,7 @@ bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
   systemCount_ = 0;
   const int usableWidth = renderer.getScreenWidth() - 2 * MARGIN_PX;
   const int pageHeight = renderer.getScreenHeight();
-  const int pitch = SYSTEM_PITCH_SS * staffSpacePx_;
+  const int padPx = SYSTEM_PAD_SS * staffSpacePx_;
   const uint16_t playLen = reader.playOrderLength();
 
   int y = MARGIN_PX;
@@ -122,7 +126,7 @@ bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
   cpmx::MeasureView measure;
   cpmx::HeaderBlockView block;
 
-  while (pos < playLen && y + pitch <= pageHeight - MARGIN_PX && systemCount_ < MAX_SYSTEMS_PER_PAGE) {
+  while (pos < playLen && systemCount_ < MAX_SYSTEMS_PER_PAGE) {
     // Continuation lines start with the clef/key header block.
     int x = 0;
     if (pos != 0) {
@@ -132,6 +136,8 @@ bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
       x = fpToPx(block.advanceFp);
     }
     uint16_t count = 0;
+    int32_t minFp = MIN_Y_FLOOR_FP;
+    int32_t maxFp = MAX_Y_FLOOR_FP;
     while (pos + count < playLen) {
       if (!reader.loadMeasure(reader.playOrderAt(pos + count), measure)) {
         return false;
@@ -144,10 +150,23 @@ bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
       }
       x += widthPx;
       count++;
+      if (measure.yMinFp < minFp) {
+        minFp = measure.yMinFp;
+      }
+      if (measure.yMaxFp > maxFp) {
+        maxFp = measure.yMaxFp;
+      }
     }
-    systems_[systemCount_++] = {pos, count};
+    const int staffTopY = y + padPx + fpToPx(-minFp);
+    const int bottomY = staffTopY + fpToPx(maxFp) + padPx;
+    // Page full? This system goes on the next page (but never orphan the
+    // first system of a page, or an over-tall one would loop forever).
+    if (systemCount_ > 0 && bottomY > pageHeight - MARGIN_PX) {
+      break;
+    }
+    systems_[systemCount_++] = {pos, count, static_cast<int16_t>(staffTopY)};
     pos += count;
-    y += pitch;
+    y = bottomY + SYSTEM_GAP_SS * staffSpacePx_;
   }
   nextPagePos_ = pos;
   return systemCount_ > 0;
@@ -156,8 +175,7 @@ bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
 void MusicReaderActivity::renderPage() {
   renderer.clearScreen();
   for (size_t i = 0; i < systemCount_; i++) {
-    const int oy = MARGIN_PX + SYSTEM_TOP_SS * staffSpacePx_ + static_cast<int>(i) * SYSTEM_PITCH_SS * staffSpacePx_;
-    drawSystem(systems_[i], oy);
+    drawSystem(systems_[i], systems_[i].staffTopY);
   }
   renderer.displayBuffer();
 #ifdef SIMULATOR
@@ -347,6 +365,16 @@ void MusicReaderActivity::pageBack() {
 
 void MusicReaderActivity::loop() {
   Activity::loop();
+
+#ifdef SIMULATOR
+  // Desktop verification hook: with CROSSPOINT_MUSIC_AUTOPAGE set, page
+  // through the whole piece automatically (pairs with the page-dump hook).
+  if (std::getenv("CROSSPOINT_MUSIC_AUTOPAGE") != nullptr && reader.isOpen() &&
+      nextPagePos_ < reader.playOrderLength()) {
+    pageForward();
+    return;
+  }
+#endif
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     activityManager.goToFileBrowser(filePath);

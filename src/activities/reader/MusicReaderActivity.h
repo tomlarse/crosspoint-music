@@ -27,6 +27,7 @@ class MusicReaderActivity final : public Activity {
   struct SystemLayout {
     uint16_t startPos;  // playOrder position of the system's first measure
     uint16_t count;     // measures on this system
+    int16_t staffTopY;  // px position of the top staff line on the page
   };
 
   bool layoutPage(uint16_t startPos);
