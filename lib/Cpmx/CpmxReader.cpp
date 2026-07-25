@@ -61,7 +61,8 @@ uint32_t primSize(const uint8_t* p, const uint8_t* end) {
     case PrimType::Dot:
       return 7 <= avail ? 7 : 0;
     case PrimType::Rect:
-      return 11 <= avail ? 11 : 0;
+      // tag + i16 x + i16 y + u16 w + u16 h
+      return 9 <= avail ? 9 : 0;
     case PrimType::Text: {
       if (avail < 9) return 0;
       const uint32_t n = 9 + p[8];
