@@ -398,13 +398,41 @@ void MusicReaderActivity::drawPrim(const cpmx::Prim& prim, const int ox, const i
       renderer.fillRect(ox + fpToPx(prim.x1), oy + fpToPx(prim.y1), fpToPx(prim.w), fpToPx(prim.h), true);
       return;
     case cpmx::PrimType::Text: {
-      // Volta numbers etc. — short labels. The primitive carries its size
-      // in staff spaces; pick the closest UI font so labels scale with the
-      // staff size instead of towering over an XXS system.
       char buf[64];
       const size_t len = prim.textLen < sizeof(buf) - 1 ? prim.textLen : sizeof(buf) - 1;
       memcpy(buf, prim.text, len);
       buf[len] = '\0';
+
+      // Digit-only labels (volta numbers) render with the music font's
+      // time-signature digits: they exist at every staff size, so they
+      // scale exactly with the notation. UI fonts bottom out around 17 px
+      // and collide with the bracket at small staff sizes.
+      bool digitsOnly = len > 0;
+      for (size_t i = 0; i < len; i++) {
+        if (buf[i] < '0' || buf[i] > '9') {
+          digitsOnly = false;
+          break;
+        }
+      }
+      if (digitsOnly && len <= 4) {
+        char glyphs[4 * 3 + 1];
+        char* p = glyphs;
+        for (size_t i = 0; i < len; i++) {
+          const uint16_t cp = 0xE080 + (buf[i] - '0');
+          *p++ = static_cast<char>(0xE0 | (cp >> 12));
+          *p++ = static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+          *p++ = static_cast<char>(0x80 | (cp & 0x3F));
+        }
+        *p = '\0';
+        // Time-signature digits are ~2 ss tall with the glyph origin at
+        // their vertical CENTER; nudge the center above the text baseline
+        // so the digit sits between the bracket line and the staff.
+        const int centerY = oy + fpToPx(prim.y1) - (staffSpacePx_ * 3) / 5;
+        renderer.drawText(musicFontId_, ox + fpToPx(prim.x1), centerY - musicFontAscender_, glyphs, true);
+        return;
+      }
+
+      // Other labels (future drill cues etc.): closest UI font.
       const auto style = (prim.textFlags & cpmx::TEXT_FLAG_BOLD) ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
       const int targetPx = fpToPx(prim.w);
       int fontId = UI_12_FONT_ID;  // ~25 px em
