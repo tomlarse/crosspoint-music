@@ -67,13 +67,24 @@ bool OtaUpdater::isUpdateNewer() const {
     return false;
   }
 
-  int currentMajor, currentMinor, currentPatch;
-  int latestMajor, latestMinor, latestPatch;
+  int currentMajor = 0, currentMinor = 0, currentPatch = 0;
+  int latestMajor = 0, latestMinor = 0, latestPatch = 0;
 
   const auto currentVersion = CROSSPOINT_VERSION;
 
-  // semantic version check (only match on 3 segments)
-  sscanf(latestVersion.c_str(), "%d.%d.%d", &latestMajor, &latestMinor, &latestPatch);
+  // Music fork releases use v-prefixed tags (v0.1.0) to stay clear of the
+  // bare tags inherited from upstream; accept both forms.
+  const char* latestStr = latestVersion.c_str();
+  if (*latestStr == 'v' || *latestStr == 'V') {
+    latestStr++;
+  }
+
+  // semantic version check (only match on 3 segments); an unparsable tag
+  // must never read as an update (variables were previously uninitialized)
+  if (sscanf(latestStr, "%d.%d.%d", &latestMajor, &latestMinor, &latestPatch) != 3) {
+    LOG_ERR("OTA", "Unparsable release tag: %s", latestVersion.c_str());
+    return false;
+  }
   sscanf(currentVersion, "%d.%d.%d", &currentMajor, &currentMinor, &currentPatch);
 
   /*
