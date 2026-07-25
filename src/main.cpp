@@ -108,7 +108,12 @@ EpdFont ui12BoldFont(&ubuntu_12_bold);
 EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
 
 // SMuFL music glyphs (Bravura) for the .cpmx sheet-music viewer.
-// Three size classes; em = staff height (19/23/31pt = 10/12/16px staff space).
+// Five size classes; em = staff height (12/15/19/23/31pt = 6/8/10/12/16px
+// staff space).
+EpdFont music12Font(&bravura_12);
+EpdFontFamily music12FontFamily(&music12Font);
+EpdFont music15Font(&bravura_15);
+EpdFontFamily music15FontFamily(&music15Font);
 EpdFont music19Font(&bravura_19);
 EpdFontFamily music19FontFamily(&music19Font);
 EpdFont music23Font(&bravura_23);
@@ -304,6 +309,8 @@ void setupDisplayAndFonts(bool seamless = false) {
   renderer.insertFont(UI_10_FONT_ID, ui10FontFamily);
   renderer.insertFont(UI_12_FONT_ID, ui12FontFamily);
   renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
+  renderer.insertFont(MUSIC_12_FONT_ID, music12FontFamily);
+  renderer.insertFont(MUSIC_15_FONT_ID, music15FontFamily);
   renderer.insertFont(MUSIC_19_FONT_ID, music19FontFamily);
   renderer.insertFont(MUSIC_23_FONT_ID, music23FontFamily);
   renderer.insertFont(MUSIC_31_FONT_ID, music31FontFamily);

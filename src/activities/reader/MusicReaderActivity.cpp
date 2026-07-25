@@ -104,18 +104,26 @@ void MusicReaderActivity::onEnter() {
 
 void MusicReaderActivity::applyStaffSize() {
   switch (SETTINGS.musicStaffSize) {
-    case CrossPointSettings::MUSIC_SIZE_SMALL:
-      staffSpacePx_ = 10;
-      musicFontId_ = MUSIC_19_FONT_ID;
+    case CrossPointSettings::MUSIC_SIZE_XS:
+      staffSpacePx_ = 6;
+      musicFontId_ = MUSIC_12_FONT_ID;
       break;
-    case CrossPointSettings::MUSIC_SIZE_LARGE:
+    case CrossPointSettings::MUSIC_SIZE_S:
+      staffSpacePx_ = 8;
+      musicFontId_ = MUSIC_15_FONT_ID;
+      break;
+    case CrossPointSettings::MUSIC_SIZE_L:
+      staffSpacePx_ = 12;
+      musicFontId_ = MUSIC_23_FONT_ID;
+      break;
+    case CrossPointSettings::MUSIC_SIZE_XL:
       staffSpacePx_ = 16;
       musicFontId_ = MUSIC_31_FONT_ID;
       break;
-    case CrossPointSettings::MUSIC_SIZE_MEDIUM:
+    case CrossPointSettings::MUSIC_SIZE_M:
     default:
-      staffSpacePx_ = 12;
-      musicFontId_ = MUSIC_23_FONT_ID;
+      staffSpacePx_ = 10;
+      musicFontId_ = MUSIC_19_FONT_ID;
       break;
   }
   musicFontAscender_ = renderer.getFontAscenderSize(musicFontId_);

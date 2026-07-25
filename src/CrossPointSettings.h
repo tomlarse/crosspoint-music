@@ -175,8 +175,17 @@ class CrossPointSettings {
 
   enum TILT_PAGE_TURN { TILT_OFF = 0, TILT_NORMAL = 1, TILT_NVERTED = 2, TILT_PAGE_TURN_COUNT };
 
-  // Sheet music staff size (.cpmx viewer): staff space 10/12/16 px
-  enum MUSIC_STAFF_SIZE { MUSIC_SIZE_SMALL = 0, MUSIC_SIZE_MEDIUM = 1, MUSIC_SIZE_LARGE = 2, MUSIC_STAFF_SIZE_COUNT };
+  // Sheet music staff size (.cpmx viewer): staff space 6/8/10/12/16 px.
+  // Hardware testing showed 10 px is comfortably readable on the X4, so the
+  // ladder extends two steps below it.
+  enum MUSIC_STAFF_SIZE {
+    MUSIC_SIZE_XS = 0,
+    MUSIC_SIZE_S = 1,
+    MUSIC_SIZE_M = 2,
+    MUSIC_SIZE_L = 3,
+    MUSIC_SIZE_XL = 4,
+    MUSIC_STAFF_SIZE_COUNT
+  };
 
   enum QUICK_RESUME_SLEEP_SCREEN {
     QUICK_RESUME_NEVER = 0,
@@ -270,7 +279,7 @@ class CrossPointSettings {
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
   // Sheet music staff size for the .cpmx viewer
-  uint8_t musicStaffSize = MUSIC_SIZE_MEDIUM;
+  uint8_t musicStaffSize = MUSIC_SIZE_M;
   // Tilt-based page turning (X3 only — requires QMI8658 IMU)
   uint8_t tiltPageTurn = TILT_OFF;
   // Language setting (Language enum index, default 0 = EN)
