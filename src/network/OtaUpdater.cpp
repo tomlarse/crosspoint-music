@@ -14,7 +14,10 @@
 #include <string>
 
 namespace {
-constexpr char latestReleaseUrl[] = "https://api.github.com/repos/crosspoint-reader/crosspoint-reader/releases/latest";
+// Music fork: OTA must track THIS repo's releases. Pointing at upstream
+// would offer its (higher-versioned) e-book firmware and overwrite the
+// music firmware.
+constexpr char latestReleaseUrl[] = "https://api.github.com/repos/tomlarse/crosspoint-music/releases/latest";
 }  // namespace
 
 OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
