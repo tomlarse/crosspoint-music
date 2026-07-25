@@ -398,22 +398,38 @@ void MusicReaderActivity::drawPrim(const cpmx::Prim& prim, const int ox, const i
       renderer.fillRect(ox + fpToPx(prim.x1), oy + fpToPx(prim.y1), fpToPx(prim.w), fpToPx(prim.h), true);
       return;
     case cpmx::PrimType::Text: {
-      // Volta numbers etc. — short labels; render with the UI font.
+      // Volta numbers etc. — short labels. The primitive carries its size
+      // in staff spaces; pick the closest UI font so labels scale with the
+      // staff size instead of towering over an XXS system.
       char buf[64];
       const size_t len = prim.textLen < sizeof(buf) - 1 ? prim.textLen : sizeof(buf) - 1;
       memcpy(buf, prim.text, len);
       buf[len] = '\0';
       const auto style = (prim.textFlags & cpmx::TEXT_FLAG_BOLD) ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
-      renderer.drawText(UI_10_FONT_ID, ox + fpToPx(prim.x1),
-                        oy + fpToPx(prim.y1) - renderer.getFontAscenderSize(UI_10_FONT_ID), buf, true, style);
+      const int targetPx = fpToPx(prim.w);
+      int fontId = UI_12_FONT_ID;  // ~25 px em
+      if (targetPx < 14) {
+        fontId = SMALL_FONT_ID;  // ~17 px em
+      } else if (targetPx < 23) {
+        fontId = UI_10_FONT_ID;  // ~21 px em
+      }
+      renderer.drawText(fontId, ox + fpToPx(prim.x1), oy + fpToPx(prim.y1) - renderer.getFontAscenderSize(fontId), buf,
+                        true, style);
       return;
     }
   }
 }
 
 void MusicReaderActivity::pageForward() {
-  if (nextPagePos_ >= reader.playOrderLength() || previousPageCount_ >= MAX_PAGE_HISTORY) {
-    return;  // last page (or history exhausted — pathological page counts)
+  if (nextPagePos_ >= reader.playOrderLength()) {
+    // Past the last page: show the end screen with next-piece suggestions.
+    atEnd_ = true;
+    endOfBookOptions_.loadOnce(filePath);
+    renderEndScreen();
+    return;
+  }
+  if (previousPageCount_ >= MAX_PAGE_HISTORY) {
+    return;  // history exhausted — pathological page counts
   }
   const uint16_t newPos = nextPagePos_;
   if (!layoutPage(newPos)) {
@@ -448,6 +464,54 @@ void MusicReaderActivity::pageBack() {
   }
 }
 
+void MusicReaderActivity::renderEndScreen() {
+  renderer.clearScreen();
+  endOfBookOptions_.render(renderer, mappedInput);
+  renderer.displayBuffer();
+}
+
+// Returns true when the event was consumed by the end screen.
+bool MusicReaderActivity::handleEndScreenInput() {
+  if (endOfBookOptions_.menuActive()) {
+    std::string openPath;
+    switch (endOfBookOptions_.handleMenuInput(mappedInput, &openPath)) {
+      case EndOfBookOptions::Action::OpenBook:
+        activityManager.goToReader(openPath);
+        return true;
+      case EndOfBookOptions::Action::GoHome:
+        activityManager.goHome();
+        return true;
+      case EndOfBookOptions::Action::LastPage:
+        atEnd_ = false;
+        renderPage();
+        return true;
+      case EndOfBookOptions::Action::Redraw:
+        renderEndScreen();
+        return true;
+      case EndOfBookOptions::Action::None:
+        break;
+    }
+  }
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    activityManager.goToFileBrowser(filePath);
+    return true;
+  }
+  if (!endOfBookOptions_.menuActive()) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::PageForward) ||
+        mappedInput.wasReleased(MappedInputManager::Button::Right)) {
+      activityManager.goHome();
+      return true;
+    }
+    if (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
+        mappedInput.wasReleased(MappedInputManager::Button::Left)) {
+      atEnd_ = false;
+      renderPage();
+      return true;
+    }
+  }
+  return true;  // the end screen owns all input while showing
+}
+
 void MusicReaderActivity::cycleStaffSize() {
   SETTINGS.musicStaffSize = (SETTINGS.musicStaffSize + 1) % CrossPointSettings::MUSIC_STAFF_SIZE_COUNT;
   SETTINGS.saveToFile();
@@ -471,6 +535,11 @@ void MusicReaderActivity::loop() {
     return;
   }
 #endif
+
+  if (atEnd_) {
+    handleEndScreenInput();
+    return;
+  }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     activityManager.goToFileBrowser(filePath);

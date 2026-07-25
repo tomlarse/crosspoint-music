@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 
+#include "EndOfBookOptions.h"
 #include "MappedInputManager.h"
 #include "activities/Activity.h"
 
@@ -37,6 +38,8 @@ class MusicReaderActivity final : public Activity {
   void cycleStaffSize();
   bool layoutPage(uint16_t startPos);
   void renderPage();
+  void renderEndScreen();
+  bool handleEndScreenInput();
   void drawSystem(const SystemLayout& system, int oy);
   void drawMeasure(const cpmx::MeasureView& measure, int ox, int oy, bool brokenBefore, bool brokenAfter);
   void drawPrimList(cpmx::PrimList list, int ox, int oy, bool skipCrossing, uint16_t widthFp);
@@ -67,6 +70,8 @@ class MusicReaderActivity final : public Activity {
   uint16_t nextPagePos_ = 0;  // where the next page starts
   uint16_t previousPages_[MAX_PAGE_HISTORY] = {};
   size_t previousPageCount_ = 0;
+  EndOfBookOptions endOfBookOptions_;
+  bool atEnd_ = false;
   SystemLayout systems_[MAX_SYSTEMS_PER_PAGE] = {};
   size_t systemCount_ = 0;
   // fillPolygon scratch for curve/beam points (heap: 2 KB would be too much
