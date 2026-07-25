@@ -996,7 +996,10 @@ print(f"    {font_name}Bitmaps,")
 print(f"    {font_name}Glyphs,")
 print(f"    {font_name}Intervals,")
 print(f"    {len(intervals)},")
-print(f"    {norm_ceil(face.size.height)},")
+# advanceY is uint8_t in EpdFontData; clamp for fonts with oversized line
+# metrics (e.g. SMuFL music fonts, whose em box spans the whole staff —
+# text-style line advance is meaningless for them anyway).
+print(f"    {min(norm_ceil(face.size.height), 255)},")
 print(f"    {norm_ceil(face.size.ascender)},")
 print(f"    {norm_floor(face.size.descender)},")
 print(f"    {'true' if is2Bit else 'false'},")

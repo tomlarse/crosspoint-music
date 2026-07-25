@@ -37,4 +37,6 @@
 #include <builtinFonts/ubuntu_10_regular.h>
 #include <builtinFonts/ubuntu_12_bold.h>
 #include <builtinFonts/ubuntu_12_regular.h>
+#include <builtinFonts/bravura_19.h>
 #include <builtinFonts/bravura_23.h>
+#include <builtinFonts/bravura_31.h>

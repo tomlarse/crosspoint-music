@@ -108,9 +108,13 @@ EpdFont ui12BoldFont(&ubuntu_12_bold);
 EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
 
 // SMuFL music glyphs (Bravura) for the .cpmx sheet-music viewer.
-// One size class for now: em = staff height, 23pt ~= 12px staff space.
+// Three size classes; em = staff height (19/23/31pt = 10/12/16px staff space).
+EpdFont music19Font(&bravura_19);
+EpdFontFamily music19FontFamily(&music19Font);
 EpdFont music23Font(&bravura_23);
 EpdFontFamily music23FontFamily(&music23Font);
+EpdFont music31Font(&bravura_31);
+EpdFontFamily music31FontFamily(&music31Font);
 
 // measurement of power button press duration calibration value
 unsigned long t1 = 0;
@@ -300,7 +304,9 @@ void setupDisplayAndFonts(bool seamless = false) {
   renderer.insertFont(UI_10_FONT_ID, ui10FontFamily);
   renderer.insertFont(UI_12_FONT_ID, ui12FontFamily);
   renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
+  renderer.insertFont(MUSIC_19_FONT_ID, music19FontFamily);
   renderer.insertFont(MUSIC_23_FONT_ID, music23FontFamily);
+  renderer.insertFont(MUSIC_31_FONT_ID, music31FontFamily);
 
   // Discover and load SD card fonts
   sdFontSystem.begin(renderer);

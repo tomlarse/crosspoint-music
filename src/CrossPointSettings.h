@@ -175,6 +175,9 @@ class CrossPointSettings {
 
   enum TILT_PAGE_TURN { TILT_OFF = 0, TILT_NORMAL = 1, TILT_NVERTED = 2, TILT_PAGE_TURN_COUNT };
 
+  // Sheet music staff size (.cpmx viewer): staff space 10/12/16 px
+  enum MUSIC_STAFF_SIZE { MUSIC_SIZE_SMALL = 0, MUSIC_SIZE_MEDIUM = 1, MUSIC_SIZE_LARGE = 2, MUSIC_STAFF_SIZE_COUNT };
+
   enum QUICK_RESUME_SLEEP_SCREEN {
     QUICK_RESUME_NEVER = 0,
     QUICK_RESUME_AFTER_TIMEOUT = 1,
@@ -213,8 +216,9 @@ class CrossPointSettings {
   // Short power button click behaviour
   uint8_t shortPwrBtn = IGNORE;
   // EPUB reading orientation settings
-  // 0 = portrait (default), 1 = landscape clockwise, 2 = inverted, 3 = landscape counter-clockwise
-  uint8_t orientation = PORTRAIT;
+  // 0 = portrait, 1 = landscape clockwise, 2 = inverted, 3 = landscape counter-clockwise
+  // Music fork: landscape CCW default — sheet music reads best in landscape.
+  uint8_t orientation = LANDSCAPE_CCW;
   // Button layouts (front layout retained for migration only)
   uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;
   uint8_t sideButtonLayout = PREV_NEXT;
@@ -265,6 +269,8 @@ class CrossPointSettings {
   uint8_t moveFinishedToReadFolder = 0;
   // Image rendering mode in EPUB reader
   uint8_t imageRendering = IMAGES_DISPLAY;
+  // Sheet music staff size for the .cpmx viewer
+  uint8_t musicStaffSize = MUSIC_SIZE_MEDIUM;
   // Tilt-based page turning (X3 only — requires QMI8658 IMU)
   uint8_t tiltPageTurn = TILT_OFF;
   // Language setting (Language enum index, default 0 = EN)

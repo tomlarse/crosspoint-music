@@ -30,6 +30,11 @@ class MusicReaderActivity final : public Activity {
     int16_t staffTopY;  // px position of the top staff line on the page
   };
 
+  void applyStaffSize();
+  void loadProgress();
+  void saveProgress();
+  void restoreToPosition(uint16_t targetPos);
+  void cycleStaffSize();
   bool layoutPage(uint16_t startPos);
   void renderPage();
   void drawSystem(const SystemLayout& system, int oy);
@@ -52,9 +57,12 @@ class MusicReaderActivity final : public Activity {
   static constexpr size_t MAX_PAGE_HISTORY = 256;
 
   std::string filePath;
+  std::string cachePath;  // /.crosspoint/cpmx_<hash>, holds progress.bin
   cpmx::CpmxReader reader;
   int staffSpacePx_ = 12;
+  int musicFontId_ = 0;
   int musicFontAscender_ = 0;
+  uint8_t pageTurnsSinceSave_ = 0;
   uint16_t pagePos_ = 0;      // playOrder position at the top of this page
   uint16_t nextPagePos_ = 0;  // where the next page starts
   uint16_t previousPages_[MAX_PAGE_HISTORY] = {};

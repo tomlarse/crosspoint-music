@@ -7,6 +7,7 @@
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "ProgressFile.h"
 #include "ReaderUtils.h"
 #include "RecentBooksStore.h"
 #include "components/UITheme.h"
@@ -84,12 +85,16 @@ void MusicReaderActivity::onEnter() {
   RECENT_BOOKS.addBook(filePath, fileName, "", "");
 
   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+  applyStaffSize();
 
-  musicFontAscender_ = renderer.getFontAscenderSize(MUSIC_23_FONT_ID);
+  // Progress lives beside the other readers' caches, keyed by path hash.
+  cachePath = "/.crosspoint/cpmx_" + std::to_string(std::hash<std::string>{}(filePath));
+  Storage.mkdir("/.crosspoint");
+  Storage.mkdir(cachePath.c_str());
+
   pagePos_ = 0;
   previousPageCount_ = 0;
-  // TODO(progress): persist/restore the playOrder position like the text
-  // readers do (reading progress = position in playOrder, per the spec).
+  loadProgress();
   if (!layoutPage(pagePos_)) {
     showError();
     return;
@@ -97,7 +102,68 @@ void MusicReaderActivity::onEnter() {
   renderPage();
 }
 
+void MusicReaderActivity::applyStaffSize() {
+  switch (SETTINGS.musicStaffSize) {
+    case CrossPointSettings::MUSIC_SIZE_SMALL:
+      staffSpacePx_ = 10;
+      musicFontId_ = MUSIC_19_FONT_ID;
+      break;
+    case CrossPointSettings::MUSIC_SIZE_LARGE:
+      staffSpacePx_ = 16;
+      musicFontId_ = MUSIC_31_FONT_ID;
+      break;
+    case CrossPointSettings::MUSIC_SIZE_MEDIUM:
+    default:
+      staffSpacePx_ = 12;
+      musicFontId_ = MUSIC_23_FONT_ID;
+      break;
+  }
+  musicFontAscender_ = renderer.getFontAscenderSize(musicFontId_);
+}
+
+void MusicReaderActivity::loadProgress() {
+  HalFile f;
+  if (!Storage.openFileForRead("MUSIC", cachePath + "/progress.bin", f)) {
+    return;  // no saved progress
+  }
+  uint8_t data[4];
+  if (f.read(data, sizeof(data)) != sizeof(data) || data[0] != 'M' || data[1] != 1) {
+    return;
+  }
+  const uint16_t saved = static_cast<uint16_t>(data[2] | (data[3] << 8));
+  if (saved > 0 && saved < reader.playOrderLength()) {
+    restoreToPosition(saved);
+  }
+}
+
+void MusicReaderActivity::saveProgress() {
+  if (!reader.isOpen()) {
+    return;
+  }
+  const uint8_t data[4] = {'M', 1, static_cast<uint8_t>(pagePos_ & 0xFF), static_cast<uint8_t>(pagePos_ >> 8)};
+  ProgressFile::writeAtomic(cachePath, data, sizeof(data));
+  pageTurnsSinceSave_ = 0;
+}
+
+void MusicReaderActivity::restoreToPosition(const uint16_t targetPos) {
+  // Page boundaries are deterministic from position 0; walk forward until
+  // the page containing the target, rebuilding the back-navigation stack.
+  uint16_t pos = 0;
+  while (pos < targetPos && previousPageCount_ < MAX_PAGE_HISTORY) {
+    if (!layoutPage(pos) || nextPagePos_ <= pos) {
+      return;  // corrupt layout state: fall back to the first page
+    }
+    if (nextPagePos_ > targetPos) {
+      break;  // target lives on the page starting at pos
+    }
+    previousPages_[previousPageCount_++] = pos;
+    pos = nextPagePos_;
+  }
+  pagePos_ = pos;
+}
+
 void MusicReaderActivity::onExit() {
+  saveProgress();
   // Reset orientation back to portrait for the rest of the UI
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
   APP_STATE.readerActivityLoadCount = 0;
@@ -271,7 +337,7 @@ void MusicReaderActivity::drawPrim(const cpmx::Prim& prim, const int ox, const i
       encodeUtf8(prim.codepoint, utf8);
       // drawText's y is the top of the line box (it adds the ascender);
       // glyph anchors in .cpmx are baseline positions.
-      renderer.drawText(MUSIC_23_FONT_ID, ox + fpToPx(prim.x1), oy + fpToPx(prim.y1) - musicFontAscender_, utf8, true);
+      renderer.drawText(musicFontId_, ox + fpToPx(prim.x1), oy + fpToPx(prim.y1) - musicFontAscender_, utf8, true);
       return;
     }
     case cpmx::PrimType::Line: {
@@ -346,6 +412,10 @@ void MusicReaderActivity::pageForward() {
   previousPages_[previousPageCount_++] = pagePos_;
   pagePos_ = newPos;
   renderPage();
+  // Debounced progress save (SD wear): every 8 turns and on exit.
+  if (++pageTurnsSinceSave_ >= 8) {
+    saveProgress();
+  }
 }
 
 void MusicReaderActivity::pageBack() {
@@ -361,6 +431,20 @@ void MusicReaderActivity::pageBack() {
   previousPageCount_--;
   pagePos_ = newPos;
   renderPage();
+  if (++pageTurnsSinceSave_ >= 8) {
+    saveProgress();
+  }
+}
+
+void MusicReaderActivity::cycleStaffSize() {
+  SETTINGS.musicStaffSize = (SETTINGS.musicStaffSize + 1) % CrossPointSettings::MUSIC_STAFF_SIZE_COUNT;
+  SETTINGS.saveToFile();
+  applyStaffSize();
+  // Page boundaries shift with the size; re-layout from the current
+  // position (stacked back-positions remain valid playOrder anchors).
+  if (layoutPage(pagePos_)) {
+    renderPage();
+  }
 }
 
 void MusicReaderActivity::loop() {
@@ -388,6 +472,10 @@ void MusicReaderActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::PageBack) ||
       mappedInput.wasReleased(MappedInputManager::Button::Left)) {
     pageBack();
+    return;
+  }
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    cycleStaffSize();
     return;
   }
 }
