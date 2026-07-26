@@ -43,7 +43,8 @@ e-book reader; this firmware adds music on top.
 
 A gig has an order, so the reader supports setlists: a `.cpsl` file is a
 plain text list of `.cpmx` paths, one per line (`#` comments allowed,
-paths relative to the setlist's folder or absolute). Open it like a book
+paths relative to the setlist's folder or absolute, up to 64 pieces —
+entries beyond that are ignored with a log message). Open it like a book
 and the reader flows through the pieces — paging past the end of one march
 lands on the first page of the next, and paging back from a piece's first
 page returns to the previous piece's last page. Your position in the

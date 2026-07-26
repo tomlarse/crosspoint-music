@@ -54,7 +54,7 @@ PDF/image ─OMR──┘        │
 
 1. **Converter prototype** (desktop, no hardware — ~80% of the risk lives here):
    MusicXML in → per-measure primitive dump (JSON first, binary later) → SVG preview re-renderer for visual verification. Start with a simple monophonic melody.
-2. **`.cpmx` spec**: ~~freeze v1~~ **done 2026-07-15** — v1 frozen and implemented (converter/cpmx_emit.py + cpmx_render.py reader/simulator); binary round-trips at 0.000% against the JSON pipeline on all test pieces.
+2. **`.cpmx` spec**: ~~freeze v1~~ **done 2026-07-15**, superseded by **v2 (frozen 2026-07-26)** — adds title/composer/arranger metadata and per-measure beatsX8; implemented in converter/cpmx_emit.py, cpmx_render.py and lib/Cpmx, guarded by the conformance test. v2 readers reject v1 files.
 3. **Firmware viewer**: new activity + Bravura glyphs via the EpdFont pipeline + measure-packing layout + `.crosspoint` caching. Follow all existing HAL/heap/activity-lifecycle rules in the root CLAUDE.md.
 4. **OMR pipeline**: wire Audiveris/oemer in front of the converter for PDF/image input. Spiked early (works, see converter/README.md); what remains is packaging.
 5. **Sheet music library app** (vision, 2026-07-25): a desktop "music library" application with conversion and device sync built in — the Calibre + CrossPoint-plugin model, but for scores. Import PDF/MusicXML into the library, conversion (incl. OMR) happens inside the app, and the repertoire syncs to the device over USB/Wi-Fi. Today's CLI converter becomes the app's backend; the firmware's existing wireless transfer endpoints are the sync target. One band member curates, everyone gets the same small `.cpmx` files.
@@ -64,7 +64,7 @@ PDF/image ─OMR──┘        │
 - ~~**Slurs/ties across line breaks**~~: **solved in the converter prototype** (2026-07-15). The converter re-renders the piece once with a forced system break before every measure (`<print new-system="yes"/>` + `breaks: encoded`); Verovio then engraves every crossing curve split, and the halves are harvested as `splitAtEnd`/`splitAtStart` variants per measure, aligned to the master render via notehead anchors. The layout stage swaps whole curve ↔ halves depending on where breaks fall. Note: Verovio only draws the *departing* half at a break (no arriving stub in the continuation measure) — we match that convention.
 - **System headers**: clef + key signature must be re-inserted at every system start; converter emits them as separate primitive blocks per (clef, key) combination.
 - ~~**Multi-staff (piano/grand staff)**~~: no longer a problem — out of scope entirely (see Use case). The format stays single-staff.
-- **Zoom**: 2–3 fixed staff sizes (bitmap glyphs), not free scaling.
+- **Zoom**: six fixed staff sizes, XX Small through X Large (bitmap glyphs at 5–16 px per staff space), not free scaling.
 
 ## Constraints to watch
 

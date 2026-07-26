@@ -18,7 +18,7 @@ class ReaderActivity final : public Activity {
   static bool isXtcFile(const std::string& path);
   static bool isTxtFile(const std::string& path);
   static bool isBmpFile(const std::string& path);
-  static bool isCpmxFile(const std::string& path);
+  static bool isMusicFile(const std::string& path);
 
   void goToLibrary(const std::string& fromBookPath = "");
   void onGoToEpubReader(std::unique_ptr<Epub> epub);

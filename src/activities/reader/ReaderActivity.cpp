@@ -29,7 +29,7 @@ bool ReaderActivity::isTxtFile(const std::string& path) {
 
 bool ReaderActivity::isBmpFile(const std::string& path) { return FsHelpers::hasBmpExtension(path); }
 
-bool ReaderActivity::isCpmxFile(const std::string& path) {
+bool ReaderActivity::isMusicFile(const std::string& path) {
   return FsHelpers::hasCpmxExtension(path) || FsHelpers::hasSetlistExtension(path);
 }
 
@@ -152,7 +152,7 @@ void ReaderActivity::onEnter() {
   currentBookPath = initialBookPath;
   if (isBmpFile(initialBookPath)) {
     onGoToBmpViewer(initialBookPath);
-  } else if (isCpmxFile(initialBookPath)) {
+  } else if (isMusicFile(initialBookPath)) {
     onGoToMusicReader(initialBookPath);
   } else if (isXtcFile(initialBookPath)) {
     auto xtc = loadXtc(initialBookPath);

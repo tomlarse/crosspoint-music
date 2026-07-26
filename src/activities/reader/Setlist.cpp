@@ -5,6 +5,37 @@
 #include <Logging.h>
 #include <Memory.h>
 
+namespace {
+// Collapse "." and ".." segments so human-written entries like
+// "../marches/x.cpmx" reach the SD layer as a plain absolute path.
+std::string normalizePath(const std::string& path) {
+  std::string out;
+  out.reserve(path.size());
+  size_t i = 0;
+  while (i < path.size()) {
+    while (i < path.size() && path[i] == '/') {
+      i++;
+    }
+    size_t j = path.find('/', i);
+    if (j == std::string::npos) {
+      j = path.size();
+    }
+    const size_t len = j - i;
+    if (len == 0 || (len == 1 && path[i] == '.')) {
+      // skip empty and "." segments
+    } else if (len == 2 && path[i] == '.' && path[i + 1] == '.') {
+      const size_t slash = out.rfind('/');
+      out.erase(slash == std::string::npos ? 0 : slash);
+    } else {
+      out += '/';
+      out.append(path, i, len);
+    }
+    i = j;
+  }
+  return out.empty() ? "/" : out;
+}
+}  // namespace
+
 bool Setlist::load(const std::string& setlistPath) {
   paths_.clear();
 
@@ -69,9 +100,9 @@ bool Setlist::load(const std::string& setlistPath) {
       break;
     }
     if (entry[0] == '/') {
-      paths_.push_back(std::move(entry));
+      paths_.push_back(normalizePath(entry));
     } else {
-      paths_.push_back((folder == "/" ? "" : folder) + "/" + entry);
+      paths_.push_back(normalizePath((folder == "/" ? "" : folder) + "/" + entry));
     }
   }
 

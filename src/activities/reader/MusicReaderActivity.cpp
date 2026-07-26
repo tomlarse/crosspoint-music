@@ -6,6 +6,8 @@
 #include <Logging.h>
 #include <Memory.h>
 
+#include <cstring>
+
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "ProgressFile.h"
@@ -17,7 +19,6 @@
 
 #ifdef SIMULATOR
 #include <cstdlib>
-#include <cstring>
 #endif
 
 namespace {
