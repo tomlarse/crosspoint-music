@@ -85,16 +85,13 @@ Decided during Phase 1 (2026-07-15):
 
 ## Feature backlog (from field testing, 2026-07-25)
 
-- **Setlists / march orders** ("marsjrekkefølge"): a playlist of pieces the
-  reader flows through in order — page forward past the end of one piece
-  and the next one's first page appears. Bands keep a few semi-fixed
-  standard orders (street parade, drill show) that change per season, plus
-  ad-hoc orders per gig, so: multiple named setlists, easy to switch.
-  Design sketch: a setlist is a small text file on SD listing `.cpmx`
-  paths in order; the file browser shows setlists as openable items; the
-  sheet music library app becomes the comfortable place to author them,
-  with on-device reordering as a later nicety. Open question: the
-  on-device UI for picking/switching setlists mid-gig with gloves on.
+- ~~**Setlists / march orders**~~ **v1 done 2026-07-26**: `.cpsl` text
+  files (one `.cpmx` path per line, `#` comments, relative or absolute
+  paths, max 64 pieces) open like books; the reader flows forward and
+  backward across piece boundaries and remembers the position per setlist
+  (piece index + playOrder position, crash-safe). End screen only after
+  the last piece. Remaining niceties for the menu/library-app work:
+  on-device setlist picking mid-gig, authoring/reordering.
 - **Cover page** per piece: title, composer, arranger shown when opening
   (and as the boundary between pieces in a setlist). Requires format
   metadata beyond the title — composer/arranger strings in the header →

@@ -7,6 +7,7 @@
 
 #include "EndOfBookOptions.h"
 #include "MappedInputManager.h"
+#include "Setlist.h"
 #include "activities/Activity.h"
 
 /// Sheet-music viewer for .cpmx files (see docs/music/cpmx-format-draft.md).
@@ -32,7 +33,11 @@ class MusicReaderActivity final : public Activity {
   };
 
   void applyStaffSize();
-  void loadProgress();
+  bool openPiece(size_t index);
+  void goToNextPiece();
+  void goToPreviousPieceEnd();
+  void recoverPiece(size_t index, uint16_t position);
+  void loadProgress(size_t& pieceIndexOut, uint16_t& positionOut);
   void saveProgress();
   void restoreToPosition(uint16_t targetPos);
   void cycleStaffSize();
@@ -60,8 +65,11 @@ class MusicReaderActivity final : public Activity {
   static constexpr size_t MAX_PAGE_HISTORY = 256;
 
   std::string filePath;
-  std::string cachePath;  // /.crosspoint/cpmx_<hash>, holds progress.bin
+  std::string cachePath;  // /.crosspoint/{cpmx,cpsl}_<hash>, holds progress.bin
   cpmx::CpmxReader reader;
+  Setlist setlist_;
+  bool setlistMode_ = false;
+  size_t setlistIdx_ = 0;
   int staffSpacePx_ = 12;
   int musicFontId_ = 0;
   int musicFontAscender_ = 0;

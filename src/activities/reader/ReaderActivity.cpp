@@ -10,10 +10,10 @@
 #include "CrossPointSettings.h"
 #include "Epub.h"
 #include "EpubReaderActivity.h"
+#include "MusicReaderActivity.h"
 #include "SdCardFontSystem.h"
 #include "Txt.h"
 #include "TxtReaderActivity.h"
-#include "MusicReaderActivity.h"
 #include "Xtc.h"
 #include "XtcReaderActivity.h"
 #include "activities/util/BmpViewerActivity.h"
@@ -29,7 +29,9 @@ bool ReaderActivity::isTxtFile(const std::string& path) {
 
 bool ReaderActivity::isBmpFile(const std::string& path) { return FsHelpers::hasBmpExtension(path); }
 
-bool ReaderActivity::isCpmxFile(const std::string& path) { return FsHelpers::hasCpmxExtension(path); }
+bool ReaderActivity::isCpmxFile(const std::string& path) {
+  return FsHelpers::hasCpmxExtension(path) || FsHelpers::hasSetlistExtension(path);
+}
 
 std::unique_ptr<Epub> ReaderActivity::loadEpub(const std::string& path) {
   if (!Storage.exists(path.c_str())) {

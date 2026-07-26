@@ -1,5 +1,6 @@
 #include "MusicReaderActivity.h"
 
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <I18n.h>
 #include <Logging.h>
@@ -16,6 +17,7 @@
 
 #ifdef SIMULATOR
 #include <cstdlib>
+#include <cstring>
 #endif
 
 namespace {
@@ -73,28 +75,108 @@ void MusicReaderActivity::onEnter() {
     return;
   }
 
-  if (!reader.open(filePath.c_str())) {
+  setlistMode_ = FsHelpers::hasSetlistExtension(filePath);
+  if (setlistMode_ && !setlist_.load(filePath)) {
     showError();
     return;
   }
 
-  // Loaded successfully: register as the open book (boot resume + recents).
+  // Progress lives beside the other readers' caches, keyed by the opened
+  // "book" — the setlist when in setlist mode, the piece otherwise.
+  cachePath = std::string("/.crosspoint/") + (setlistMode_ ? "cpsl_" : "cpmx_") +
+              std::to_string(std::hash<std::string>{}(filePath));
+  Storage.mkdir("/.crosspoint");
+  Storage.mkdir(cachePath.c_str());
+
+  ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+  applyStaffSize();
+
+  size_t startIdx = 0;
+  uint16_t startPos = 0;
+  loadProgress(startIdx, startPos);
+  if (setlistMode_ && startIdx >= setlist_.count()) {
+    startIdx = 0;
+    startPos = 0;
+  }
+  if (!openPiece(startIdx)) {
+    // Saved progress can point at a piece that was removed or renamed since
+    // the setlist was written; a fresh start beats an error screen.
+    if (!setlistMode_ || startIdx == 0 || !openPiece(0)) {
+      showError();
+      return;
+    }
+    startPos = 0;
+  }
+
+  // Opened successfully: register as the open book (boot resume + recents).
   const auto fileName = filePath.substr(filePath.rfind('/') + 1);
   APP_STATE.openEpubPath = filePath;
   APP_STATE.saveToFile();
   RECENT_BOOKS.addBook(filePath, fileName, "", "");
 
-  ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
-  applyStaffSize();
+  if (startPos > 0 && startPos < reader.playOrderLength()) {
+    restoreToPosition(startPos);
+  }
+  if (!layoutPage(pagePos_)) {
+    showError();
+    return;
+  }
+  renderPage();
+}
 
-  // Progress lives beside the other readers' caches, keyed by path hash.
-  cachePath = "/.crosspoint/cpmx_" + std::to_string(std::hash<std::string>{}(filePath));
-  Storage.mkdir("/.crosspoint");
-  Storage.mkdir(cachePath.c_str());
-
+// Open one piece (the single file, or setlist entry `index`) and reset the
+// per-piece paging state.
+bool MusicReaderActivity::openPiece(const size_t index) {
+  setlistIdx_ = index;
+  const std::string& path = setlistMode_ ? setlist_.pieceAt(index) : filePath;
+  if (!reader.open(path.c_str())) {
+    return false;
+  }
   pagePos_ = 0;
+  nextPagePos_ = 0;
   previousPageCount_ = 0;
-  loadProgress();
+  atEnd_ = false;
+  return true;
+}
+
+void MusicReaderActivity::goToNextPiece() {
+  const size_t fromIdx = setlistIdx_;
+  const uint16_t fromPos = pagePos_;
+  if (!openPiece(setlistIdx_ + 1) || !layoutPage(0)) {
+    recoverPiece(fromIdx, fromPos);
+    return;
+  }
+  renderPage();
+  saveProgress();
+}
+
+void MusicReaderActivity::goToPreviousPieceEnd() {
+  const size_t fromIdx = setlistIdx_;
+  const uint16_t fromPos = pagePos_;
+  if (!openPiece(setlistIdx_ - 1)) {
+    recoverPiece(fromIdx, fromPos);
+    return;
+  }
+  const uint16_t playLen = reader.playOrderLength();
+  restoreToPosition(playLen > 0 ? playLen - 1 : 0);
+  if (!layoutPage(pagePos_)) {
+    recoverPiece(fromIdx, fromPos);
+    return;
+  }
+  renderPage();
+  saveProgress();
+}
+
+// A neighbouring setlist piece failed to open (removed or corrupt since the
+// setlist was written). openPiece() has already closed the current file, so
+// reopen the piece the user was on and stay there instead of erroring out.
+void MusicReaderActivity::recoverPiece(const size_t index, const uint16_t position) {
+  LOG_ERR("MUSIC", "Setlist piece unopenable, staying on piece %u", static_cast<unsigned>(index));
+  if (!openPiece(index)) {
+    showError();
+    return;
+  }
+  restoreToPosition(position);
   if (!layoutPage(pagePos_)) {
     showError();
     return;
@@ -133,18 +215,34 @@ void MusicReaderActivity::applyStaffSize() {
   musicFontAscender_ = renderer.getFontAscenderSize(musicFontId_);
 }
 
-void MusicReaderActivity::loadProgress() {
+// Read saved progress without applying it (the piece is not open yet).
+// Piece records: 'M',1,pos. Setlist records: 'S',1,pieceIdx,pos,fingerprint.
+void MusicReaderActivity::loadProgress(size_t& pieceIndexOut, uint16_t& positionOut) {
+  pieceIndexOut = 0;
+  positionOut = 0;
   HalFile f;
   if (!Storage.openFileForRead("MUSIC", cachePath + "/progress.bin", f)) {
     return;  // no saved progress
   }
-  uint8_t data[4];
-  if (f.read(data, sizeof(data)) != sizeof(data) || data[0] != 'M' || data[1] != 1) {
-    return;
-  }
-  const uint16_t saved = static_cast<uint16_t>(data[2] | (data[3] << 8));
-  if (saved > 0 && saved < reader.playOrderLength()) {
-    restoreToPosition(saved);
+  if (setlistMode_) {
+    uint8_t data[10];
+    if (f.read(data, sizeof(data)) != sizeof(data) || data[0] != 'S' || data[1] != 1) {
+      return;
+    }
+    uint32_t fp;
+    memcpy(&fp, &data[6], sizeof(fp));
+    if (fp != setlist_.fingerprint()) {
+      LOG_INF("MUSIC", "Setlist changed since last read, starting fresh");
+      return;
+    }
+    pieceIndexOut = static_cast<size_t>(data[2] | (data[3] << 8));
+    positionOut = static_cast<uint16_t>(data[4] | (data[5] << 8));
+  } else {
+    uint8_t data[4];
+    if (f.read(data, sizeof(data)) != sizeof(data) || data[0] != 'M' || data[1] != 1) {
+      return;
+    }
+    positionOut = static_cast<uint16_t>(data[2] | (data[3] << 8));
   }
 }
 
@@ -152,8 +250,21 @@ void MusicReaderActivity::saveProgress() {
   if (!reader.isOpen()) {
     return;
   }
-  const uint8_t data[4] = {'M', 1, static_cast<uint8_t>(pagePos_ & 0xFF), static_cast<uint8_t>(pagePos_ >> 8)};
-  ProgressFile::writeAtomic(cachePath, data, sizeof(data));
+  if (setlistMode_) {
+    const uint16_t idx = static_cast<uint16_t>(setlistIdx_);
+    uint8_t data[10] = {'S',
+                        1,
+                        static_cast<uint8_t>(idx & 0xFF),
+                        static_cast<uint8_t>(idx >> 8),
+                        static_cast<uint8_t>(pagePos_ & 0xFF),
+                        static_cast<uint8_t>(pagePos_ >> 8)};
+    const uint32_t fp = setlist_.fingerprint();
+    memcpy(&data[6], &fp, sizeof(fp));
+    ProgressFile::writeAtomic(cachePath, data, sizeof(data));
+  } else {
+    const uint8_t data[4] = {'M', 1, static_cast<uint8_t>(pagePos_ & 0xFF), static_cast<uint8_t>(pagePos_ >> 8)};
+    ProgressFile::writeAtomic(cachePath, data, sizeof(data));
+  }
   pageTurnsSinceSave_ = 0;
 }
 
@@ -450,7 +561,12 @@ void MusicReaderActivity::drawPrim(const cpmx::Prim& prim, const int ox, const i
 
 void MusicReaderActivity::pageForward() {
   if (nextPagePos_ >= reader.playOrderLength()) {
-    // Past the last page: show the end screen with next-piece suggestions.
+    // Past the last page: flow into the next setlist piece, or show the
+    // end screen with next-piece suggestions after the last one.
+    if (setlistMode_ && setlistIdx_ + 1 < setlist_.count()) {
+      goToNextPiece();
+      return;
+    }
     atEnd_ = true;
     endOfBookOptions_.loadOnce(filePath);
     renderEndScreen();
@@ -476,6 +592,9 @@ void MusicReaderActivity::pageForward() {
 
 void MusicReaderActivity::pageBack() {
   if (previousPageCount_ == 0) {
+    if (setlistMode_ && setlistIdx_ > 0) {
+      goToPreviousPieceEnd();
+    }
     return;
   }
   const uint16_t newPos = previousPages_[previousPageCount_ - 1];
