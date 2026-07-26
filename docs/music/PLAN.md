@@ -83,47 +83,18 @@ Decided during Phase 1 (2026-07-15):
 - **Repeats/voltas/lyrics/chord symbols** (2026-07-15, use-case decision): repeats + voltas are v1 *with navigation* (see Use case); text under staff (drill cues/lyrics) v1.x via TEXT primitive; chord symbols out.
 - **How Verovio emits voltas** (verified 2026-07-15): repeat dots are SMuFL glyph E044 inside the owning measure's barLine group — harvested for free. Volta brackets are `<g class="ending">` *siblings* of measures (milestone pattern) containing 3 straight lines + a bold text label; the converter attaches them to the right measure by bracket midpoint. TEXT primitive implemented for the labels.
 
-## Feature backlog (from field testing, 2026-07-25)
+## Feature backlog
+
+**Open work is tracked as [GitHub issues](https://github.com/tomlarse/crosspoint-music/issues) from 2026-07-26** — this document keeps vision, decisions and history; the issue tracker owns the todo list. Snapshot of what moved there: on-device setlist CRUD (#2), cover page per piece (#3), auto page turn at marching tempo (#4), music-adapted menu system (#5), D.C./D.S. al Fine (#6), multi-measure volta splitting (#7), ABC ingest (#8), XXS sub-pixel floor (#9), OTA update failure (#10), and the library desktop app vision (#11).
+
+Done (kept as history):
 
 - ~~**Setlists / march orders**~~ **v1 done 2026-07-26**: `.cpsl` text
   files (one `.cpmx` path per line, `#` comments, relative or absolute
   paths, max 64 pieces) open like books; the reader flows forward and
   backward across piece boundaries. Setlists always start from the top
   (no saved position — a gig is performed from the first piece) and show
-  the normal end screen only after the last piece. When cover pages land,
-  cross-piece transitions go directly to the next piece's cover (which is
-  also the arming point for tempo-based auto page turn).
-- **On-device setlist CRUD** (added 2026-07-26): an interface on the
-  device for managing march orders without a computer — create a new
-  .cpsl, add/remove pieces, reorder, delete a list, and pick/switch the
-  active list mid-gig. Belongs to the music-adapted menu system work;
-  the library app becomes the comfortable authoring place later, but
-  the device must be able to stand alone at a rehearsal.
-- **Cover page** per piece: title, composer, arranger shown when opening
-  (and as the boundary between pieces in a setlist). Requires format
-  metadata beyond the title — composer/arranger strings in the header →
-  **format v2** (bump version byte, run the conformance test). MusicXML
-  carries these fields; the converter already parses the file.
-- **Auto page turn at marching tempo** (nice-to-have): marches are played
-  at a known tempo (e.g. 112 BPM). Beats per page = sum of each measure's
-  beat count, so the viewer can compute when to turn. Needs per-measure
-  beat counts in the format (u8 per measure — bundle with the v2 change).
-  UX sketch: enabled per setlist/piece with a BPM setting; arming happens
-  when you page past the cover, so the first real page turn is already on
-  tempo. Manual page turns stay live as override.
-- **XXS rendering floor**: at 5 px staff space, positions between staff
-  lines land on half pixels and must round — notes sit visibly off-center
-  and glyphs pixelate. 5 px is the practical minimum for now; if smaller
-  is ever wanted, it needs sub-pixel-aware placement (e.g. even-only staff
-  spaces or 2x supersampled glyph variants).
-- **Music-adapted menu system** (added 2026-07-26): the viewer currently
-  borrows the e-book input model (Confirm cycles size, no in-reader menu).
-  Music needs its own menu: jump to rehearsal mark/measure, setlist
-  switching, size, auto-page-turn toggle/BPM — reachable with gloves on.
-  Natural home for everything that today squats on single buttons.
-
-Still open:
-
+  the normal end screen only after the last piece.
 - ~~**`.cpmx` conformance test**~~ **done 2026-07-25**
   (`python3 test/conformance/run_conformance.py`): decodes every test piece
   with the firmware's CpmxReader (host build via stubs) and the Python
@@ -131,6 +102,3 @@ Still open:
   (truncations + bit flips) where both readers must agree on
   reject-or-identical-decode. Verified to catch the RECT skip-table bug
   class. Must run before any format change.
-- How ABC ingest enters: Verovio reads ABC natively, so possibly free.
-- D.C./D.S. al Fine: extend the unroller with jump directives (Fine, segno, coda) — same playOrder mechanism, needs `<sound>`/direction parsing.
-- Volta brackets spanning multiple measures need per-measure splitting (same family as slur splits).
