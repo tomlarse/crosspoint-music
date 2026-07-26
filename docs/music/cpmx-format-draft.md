@@ -1,6 +1,8 @@
-# `.cpmx` — CrossPoint Music Format v1
+# `.cpmx` — CrossPoint Music Format v2
 
-**Status**: v1 frozen 2026-07-15, implemented and round-trip-validated in
+**Status**: v2 frozen 2026-07-26 (v1 + cover metadata and per-measure beat
+counts; pre-adoption, so readers accept only v2 — no v1 compatibility
+path). v1 was frozen 2026-07-15. Implemented and round-trip-validated in
 [converter/cpmx_emit.py](../../converter/cpmx_emit.py) /
 [converter/cpmx_render.py](../../converter/cpmx_render.py) (0.000% ink-pixel
 mismatch against the JSON pipeline on all test pieces, incl. a real march
@@ -41,14 +43,18 @@ version before any structural change.
 ```
 Header:
   char[4] magic = "CPMX"
-  u8      version = 1
+  u8      version = 2
   u8      flags = 0                (reserved)
   u16     measureCount
   u16     playOrderLen             (0 = linear, page measures in order)
   u16     headerBlockCount
   u16     unitsPerStaffSpace       (source-render units, for glyph scaling)
   u16     titleLen
-  u8[titleLen]        title        (UTF-8)
+  u16     composerLen
+  u16     arrangerLen
+  u8[titleLen]        title        (UTF-8; from MusicXML work-title)
+  u8[composerLen]     composer     (UTF-8; may be empty)
+  u8[arrangerLen]     arranger     (UTF-8; may be empty)
   u16[playOrderLen]   playOrder    (measure indices, repeats unrolled)
   u32[headerBlockCount + measureCount] offsets
           (absolute file offsets: header blocks first, then measures)
@@ -69,6 +75,13 @@ MeasureRecord:
                                     the new block)
   u8      flags                    (bit0: splitAtStart list present,
                                     bit1: splitAtEnd list present)
+  u16     beatsX8                  (metronome beats sounding in this
+                                    measure, fixed point 1/8 — the unit a
+                                    marcher counts: quarter in simple time,
+                                    dotted quarter in compound. A merged
+                                    multi-measure rest carries the SUM over
+                                    all measures it covers, hence u16.
+                                    0 = unknown; auto page turn skips it)
   PrimitiveList                    (default content)
   [PrimitiveList splitAtStart]     (if flags bit0)
   [PrimitiveList splitAtEnd]       (if flags bit1)
@@ -123,7 +136,7 @@ Primitive:  u8 tag, then payload:
 Files come off a user's SD card and may be truncated or corrupt; the
 firmware reader must fail cleanly (LOG_ERR + refuse to open), never crash.
 
-- `magic == "CPMX"`, `version == 1`; nonzero reserved header flags → reject.
+- `magic == "CPMX"`, `version == 2`; nonzero reserved header flags → reject.
 - `measureCount >= 1`; `1 <= headerBlockCount <= 255` (systemHeaderIdx is
   u8, so more blocks than 255 is unaddressable and invalid).
 - Offset table: every offset strictly greater than the previous one and
@@ -136,7 +149,8 @@ firmware reader must fail cleanly (LOG_ERR + refuse to open), never crash.
 - Unknown primitive tag, unknown measure flag bits (above bit1), or a
   truncated primitive payload → reject.
 - Practical ceilings for the 380KB target (reject above, BEFORE
-  allocating): measureCount ≤ 4096, playOrderLen ≤ 16384, titleLen ≤ 256,
+  allocating): measureCount ≤ 4096, playOrderLen ≤ 16384,
+  titleLen/composerLen/arrangerLen ≤ 256 each,
   primitives per list ≤ 4096, points per primitive ≤ 255 (u8),
   text ≤ 255 bytes (u8), single record ≤ 32 KB.
 

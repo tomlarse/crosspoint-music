@@ -95,6 +95,10 @@ int main(int argc, char** argv) {
 
   printf("{\"title\":");
   printHexString(reader.title());
+  printf(",\"composer\":");
+  printHexString(reader.composer());
+  printf(",\"arranger\":");
+  printHexString(reader.arranger());
   // unitsPerStaffSpace is not exposed by the firmware reader (unused on
   // device); read it straight from the header for the dump.
   {
@@ -132,8 +136,8 @@ int main(int argc, char** argv) {
     if (!reader.loadMeasure(m, view)) {
       return 1;
     }
-    printf("%s{\"width\":%u,\"yMin\":%d,\"yMax\":%d,\"headerIdx\":%u,\"prims\":", m ? "," : "", view.widthFp,
-           view.yMinFp, view.yMaxFp, view.headerIdx);
+    printf("%s{\"width\":%u,\"yMin\":%d,\"yMax\":%d,\"headerIdx\":%u,\"beatsX8\":%u,\"prims\":",
+           m ? "," : "", view.widthFp, view.yMinFp, view.yMaxFp, view.headerIdx, view.beatsX8);
     if (!printPrimList(view.prims)) return 1;
     printf(",\"splitStart\":");
     if (!printPrimList(view.splitStart)) return 1;

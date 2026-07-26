@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Firmware simulator: read a .cpmx v1 binary and render reflowed SVG.
+"""Firmware simulator: read a .cpmx v2 binary and render reflowed SVG.
 
 This is the round-trip proof for the format: it parses the binary
 independently of the emitter, performs the measure-packing layout the
@@ -115,8 +115,8 @@ def read_prim_list(r):
 def load_cpmx(path):
     data = path.read_bytes()
     r = Reader(data)
-    magic, version, flags, n_measures, n_order, n_blocks, units, title_len = \
-        r.take("4sBBHHHHH")
+    (magic, version, flags, n_measures, n_order, n_blocks, units,
+     title_len, composer_len, arranger_len) = r.take("4sBBHHHHHHH")
     if magic != MAGIC:
         sys.exit(f"error: not a CPMX file: {path}")
     if version != VERSION:
@@ -127,9 +127,12 @@ def load_cpmx(path):
         sys.exit(f"error: measureCount {n_measures} outside [1, {MAX_MEASURES}]")
     if n_blocks == 0 or n_blocks > 255:
         sys.exit(f"error: headerBlockCount {n_blocks} outside [1, 255]")
-    if n_order > MAX_PLAY_ORDER or title_len > MAX_TITLE_LEN:
-        sys.exit("error: playOrder or title exceeds ceiling")
+    if n_order > MAX_PLAY_ORDER or title_len > MAX_TITLE_LEN or \
+            composer_len > MAX_TITLE_LEN or arranger_len > MAX_TITLE_LEN:
+        sys.exit("error: playOrder or metadata string exceeds ceiling")
     title = r.take_bytes(title_len).decode("utf-8")
+    composer = r.take_bytes(composer_len).decode("utf-8")
+    arranger = r.take_bytes(arranger_len).decode("utf-8")
     play_order = [r.take("H") for _ in range(n_order)]
     if any(i >= n_measures for i in play_order):
         sys.exit("error: playOrder index out of range")
@@ -158,7 +161,7 @@ def load_cpmx(path):
     measures = []
     for i in range(n_blocks, len(offsets)):
         mr = record_reader(i)
-        width, y_min, y_max, header_idx, flags = mr.take("HhhBB")
+        width, y_min, y_max, header_idx, flags, beats_x8 = mr.take("HhhBBH")
         if header_idx >= n_blocks:
             sys.exit(f"error: systemHeaderIdx {header_idx} >= "
                      f"headerBlockCount {n_blocks}")
@@ -166,6 +169,7 @@ def load_cpmx(path):
             sys.exit(f"error: unknown measure flag bits 0x{flags:02x}")
         m = {"width": width / COORD_FP, "yMin": y_min / COORD_FP,
              "yMax": y_max / COORD_FP, "headerIdx": header_idx,
+             "beatsX8": beats_x8,
              "primitives": read_prim_list(mr)}
         if flags & MEASURE_FLAG_SPLIT_START:
             m["splitAtStart"] = read_prim_list(mr)
@@ -173,7 +177,8 @@ def load_cpmx(path):
             m["splitAtEnd"] = read_prim_list(mr)
         measures.append(m)
 
-    return {"title": title, "unitsPerStaffSpace": units,
+    return {"title": title, "composer": composer, "arranger": arranger,
+            "unitsPerStaffSpace": units,
             "playOrder": play_order or list(range(n_measures)),
             "blocks": blocks, "measures": measures}
 

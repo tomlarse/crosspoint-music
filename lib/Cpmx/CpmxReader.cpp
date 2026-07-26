@@ -9,14 +9,14 @@ namespace cpmx {
 
 namespace {
 
-constexpr uint32_t FIXED_HEADER_SIZE = 16;  // magic..titleLen
+constexpr uint32_t FIXED_HEADER_SIZE = 20;  // magic..arrangerLen
 constexpr uint32_t MAX_RECORD_CEILING = 32 * 1024;
 constexpr uint16_t MAX_PRIMS_PER_LIST = 4096;
 // RAM-budget ceilings (spec validation rules): reject before allocating,
 // so a malicious header cannot drive large allocations on a 380KB target.
 constexpr uint16_t MAX_MEASURES = 4096;
 constexpr uint16_t MAX_PLAY_ORDER = 16384;
-constexpr uint16_t MAX_TITLE_LEN = 256;
+constexpr uint16_t MAX_TITLE_LEN = 256;  // also composer/arranger
 
 uint16_t readU16(const uint8_t* p) {
   uint16_t v;
@@ -202,24 +202,34 @@ bool CpmxReader::openInternal(const char* path) {
   // header + 12: unitsPerStaffSpace — converter-side glyph scale reference,
   // unused on device (glyphs are pre-rasterized per size class).
   const uint16_t titleLen = readU16(header + 14);
+  const uint16_t composerLen = readU16(header + 16);
+  const uint16_t arrangerLen = readU16(header + 18);
   if (measureCount_ == 0 || measureCount_ > MAX_MEASURES || blockCount == 0 || blockCount > 255 ||
-      playOrderLen_ > MAX_PLAY_ORDER || titleLen > MAX_TITLE_LEN) {
-    LOG_ERR("CPMX", "Invalid counts: %u measures, %u blocks, playOrder %u, title %u", measureCount_, blockCount,
-            playOrderLen_, titleLen);
+      playOrderLen_ > MAX_PLAY_ORDER || titleLen > MAX_TITLE_LEN || composerLen > MAX_TITLE_LEN ||
+      arrangerLen > MAX_TITLE_LEN) {
+    LOG_ERR("CPMX", "Invalid counts: %u measures, %u blocks, playOrder %u, strings %u/%u/%u", measureCount_, blockCount,
+            playOrderLen_, titleLen, composerLen, arrangerLen);
     return false;
   }
   headerBlockCount_ = static_cast<uint8_t>(blockCount);
 
-  title_ = makeUniqueNoThrow<char[]>(titleLen + 1u);
-  if (!title_) {
-    LOG_ERR("CPMX", "OOM: title (%u bytes)", titleLen + 1);
+  const auto readString = [this](std::unique_ptr<char[]>& dst, const uint16_t len, const char* what) {
+    dst = makeUniqueNoThrow<char[]>(len + 1u);
+    if (!dst) {
+      LOG_ERR("CPMX", "OOM: %s (%u bytes)", what, len + 1);
+      return false;
+    }
+    if (file_.read(dst.get(), len) != static_cast<int>(len)) {
+      LOG_ERR("CPMX", "Truncated %s", what);
+      return false;
+    }
+    dst[len] = '\0';
+    return true;
+  };
+  if (!readString(title_, titleLen, "title") || !readString(composer_, composerLen, "composer") ||
+      !readString(arranger_, arrangerLen, "arranger")) {
     return false;
   }
-  if (file_.read(title_.get(), titleLen) != static_cast<int>(titleLen)) {
-    LOG_ERR("CPMX", "Truncated title");
-    return false;
-  }
-  title_[titleLen] = '\0';
 
   if (playOrderLen_ > 0) {
     const uint32_t bytes = 2u * playOrderLen_;
@@ -255,7 +265,7 @@ bool CpmxReader::openInternal(const char* path) {
   // Offsets must ascend strictly and stay inside the file; a record is
   // bounded by the next offset (EOF for the last). Derive the largest
   // record so one buffer serves every load.
-  uint32_t prev = FIXED_HEADER_SIZE + titleLen + 2u * playOrderLen_ + tableBytes - 1;
+  uint32_t prev = FIXED_HEADER_SIZE + titleLen + composerLen + arrangerLen + 2u * playOrderLen_ + tableBytes - 1;
   maxRecordSize_ = 0;
   for (uint32_t i = 0; i < tableCount; i++) {
     const uint32_t off = readU32(offsets_.get() + 4u * i);
@@ -292,6 +302,8 @@ void CpmxReader::close() {
   }
   open_ = false;
   title_.reset();
+  composer_.reset();
+  arranger_.reset();
   playOrder_.reset();
   offsets_.reset();
   record_.reset();
@@ -338,7 +350,7 @@ bool CpmxReader::loadMeasure(const uint16_t index, MeasureView& out) {
   }
   const uint8_t* p = record_.get();
   const uint8_t* end = p + length;
-  if (length < 8) {
+  if (length < 10) {
     LOG_ERR("CPMX", "Measure %u record too short", index);
     return false;
   }
@@ -347,6 +359,7 @@ bool CpmxReader::loadMeasure(const uint16_t index, MeasureView& out) {
   out.yMaxFp = readI16(p + 4);
   out.headerIdx = p[6];
   out.flags = p[7];
+  out.beatsX8 = readU16(p + 8);
   if (out.headerIdx >= headerBlockCount_) {
     LOG_ERR("CPMX", "Measure %u headerIdx %u out of range", index, out.headerIdx);
     return false;
@@ -355,7 +368,7 @@ bool CpmxReader::loadMeasure(const uint16_t index, MeasureView& out) {
     LOG_ERR("CPMX", "Measure %u unknown flags 0x%02x", index, out.flags);
     return false;
   }
-  p += 8;
+  p += 10;
   out.splitStart = PrimList{};
   out.splitEnd = PrimList{};
   if (!parseList(&p, end, out.prims)) {

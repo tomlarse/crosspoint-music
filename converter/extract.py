@@ -558,6 +558,68 @@ def attach_endings(root, extractor, measures, staff_space):
             rebase_prims(raw, target["sourceX"], target["sourceY"], staff_space))
 
 
+def parse_work_metadata(musicxml_path):
+    """Title/composer/arranger for the .cpmx header (cover page data)."""
+    root = ET.parse(musicxml_path).getroot()
+    title = root.findtext("work/work-title") or ""
+    composer = ""
+    arranger = ""
+    for creator in root.findall("identification/creator"):
+        kind = creator.get("type", "")
+        if kind == "composer" and not composer:
+            composer = (creator.text or "").strip()
+        elif kind == "arranger" and not arranger:
+            arranger = (creator.text or "").strip()
+    return title.strip(), composer, arranger
+
+
+def measure_beats_x8(mx_measures, warnings):
+    """Metronome beats per MusicXML measure, fixed point 1/8.
+
+    The metronome beat is what a marcher counts: a quarter in simple time,
+    a dotted quarter in compound time (6/8, 9/8, 12/8). Actual sounding
+    duration is accumulated (handles pickup measures), so a 2/4 anacrusis
+    of one eighth yields 0.5 beats.
+    """
+    divisions = 1
+    beats_num, beat_type = 4, 4
+    out = []
+    for i, m in enumerate(mx_measures):
+        attrs = m.find("attributes")
+        if attrs is not None:
+            d = attrs.findtext("divisions")
+            if d:
+                divisions = int(d)
+            t = attrs.find("time")
+            if t is not None:
+                beats_num = int(t.findtext("beats") or beats_num)
+                beat_type = int(t.findtext("beat-type") or beat_type)
+        pos = 0
+        max_pos = 0
+        for el in m:
+            tag = tag_name(el)
+            if tag == "note":
+                if el.find("chord") is not None or el.find("grace") is not None:
+                    continue
+                pos += int(el.findtext("duration") or 0)
+            elif tag == "backup":
+                pos -= int(el.findtext("duration") or 0)
+            elif tag == "forward":
+                pos += int(el.findtext("duration") or 0)
+            max_pos = max(max_pos, pos)
+        quarters = max_pos / divisions if divisions else 0
+        compound = beat_type == 8 and beats_num % 3 == 0 and beats_num >= 6
+        beats = quarters / 1.5 if compound else quarters * beat_type / 4
+        x8 = round(beats * 8)
+        if not 0 < x8 <= 0xFFFF:
+            if x8 != 0:
+                warnings.append(f"MusicXML measure {m.get('number')}: "
+                                f"implausible beat count {beats:.2f}")
+            x8 = 0  # unknown: auto page turn will skip this measure
+        out.append(x8)
+    return out
+
+
 def parse_repeats(musicxml_path, measure_count, warnings):
     """Read repeat barlines and endings ("hus") from the MusicXML source.
 
@@ -569,7 +631,7 @@ def parse_repeats(musicxml_path, measure_count, warnings):
     part = ET.parse(musicxml_path).getroot().find("part")
     if part is None:
         warnings.append("MusicXML: no <part>, playOrder skipped")
-        return {}, None
+        return {}, None, None
     mx_measures = part.findall("measure")
 
     # Multi-measure rests: Verovio renders an N-measure rest as ONE svg
@@ -595,7 +657,7 @@ def parse_repeats(musicxml_path, measure_count, warnings):
             f"MusicXML has {len(mx_measures)} measures "
             f"({svg_i + 1} after multi-rest merging) but the SVG produced "
             f"{measure_count}; playOrder skipped")
-        return {}, None
+        return {}, None, None
 
     # Monophony guard: this pipeline targets single-voice band parts, so
     # <chord> notes in the source are almost certainly OMR misreads
@@ -645,10 +707,16 @@ def parse_repeats(musicxml_path, measure_count, warnings):
             info["volta"] = volta[i]
     per_measure = {k: v for k, v in per_measure.items() if v}
 
+    # Beats per svg measure: a merged multi-rest sums its covered measures.
+    beats_mx = measure_beats_x8(mx_measures, warnings)
+    beats_svg = [0] * measure_count
+    for i, b in enumerate(beats_mx):
+        beats_svg[mx2svg[i]] = min(0xFFFF, beats_svg[mx2svg[i]] + b)
+
     order_mx = unroll_repeats(len(mx_measures), fwd, back_times, volta)
     if order_mx is None:
         warnings.append("repeat structure did not converge, playOrder skipped")
-        return per_measure, None
+        return per_measure, None, beats_svg
     # Map to svg indices, collapsing runs of *different* MusicXML measures
     # that share one svg measure (a multi-rest traversed linearly). A
     # genuine immediate repeat of the same measure is kept.
@@ -661,7 +729,7 @@ def parse_repeats(musicxml_path, measure_count, warnings):
             continue
         play_order.append(s)
         prev_mx = idx
-    return per_measure, play_order
+    return per_measure, play_order, beats_svg
 
 
 def unroll_repeats(n, fwd, back_times, volta):
@@ -730,14 +798,22 @@ def extract(musicxml_path, out_dir):
         split_variants = harvest_split_curves(
             musicxml_path, measures, extractor.warnings)
 
-    repeat_info, play_order = parse_repeats(
+    repeat_info, play_order, beats_svg = parse_repeats(
         musicxml_path, len(measures), extractor.warnings)
     for i, info in repeat_info.items():
         measures[i]["repeat"] = info
+    if beats_svg is not None:
+        for i, m in enumerate(measures):
+            m["beatsX8"] = beats_svg[i]
+
+    title, composer, arranger = parse_work_metadata(musicxml_path)
 
     doc = {
         "meta": {
             "source": musicxml_path.name,
+            "title": title or musicxml_path.stem,
+            "composer": composer,
+            "arranger": arranger,
             "verovioVersion": verovio_version,
             "verovioOptions": VEROVIO_OPTIONS,
             "unitsPerStaffSpace": staff_space,

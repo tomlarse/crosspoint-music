@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit a .cpmx v1 binary from a primitives JSON (extract.py output).
+"""Emit a .cpmx v2 binary from a primitives JSON (extract.py output).
 
 Format spec: docs/music/cpmx-format-draft.md. Key properties:
 
@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 MAGIC = b"CPMX"
-VERSION = 1
+VERSION = 2
 
 PRIM_GLYPH = 1
 PRIM_LINE = 2
@@ -151,8 +151,11 @@ def pack_measure(m, header_idx):
         flags |= MEASURE_FLAG_SPLIT_START
     if m.get("splitAtEnd"):
         flags |= MEASURE_FLAG_SPLIT_END
-    out = [struct.pack("<HhhBB", ufp(m["width"]), fp(m["yMin"]), fp(m["yMax"]),
-                       header_idx, flags)]
+    beats_x8 = int(m.get("beatsX8", 0))
+    if not 0 <= beats_x8 <= 0xFFFF:
+        raise ValueError(f"beatsX8 {beats_x8} out of u16 range")
+    out = [struct.pack("<HhhBBH", ufp(m["width"]), fp(m["yMin"]), fp(m["yMax"]),
+                       header_idx, flags, beats_x8)]
     out.append(pack_prim_list(m["primitives"]))
     if m.get("splitAtStart"):
         out.append(pack_prim_list(m["splitAtStart"]))
@@ -161,7 +164,7 @@ def pack_measure(m, header_idx):
     return b"".join(out)
 
 
-def emit(doc, title):
+def emit(doc, title, composer="", arranger=""):
     measures = doc["measures"]
     if not measures:
         raise ValueError("empty score: .cpmx requires at least one measure")
@@ -180,10 +183,18 @@ def emit(doc, title):
                      for i, m in enumerate(measures)]
 
     title_data = title.encode("utf-8")
+    composer_data = composer.encode("utf-8")
+    arranger_data = arranger.encode("utf-8")
+    for name, data in (("title", title_data), ("composer", composer_data),
+                       ("arranger", arranger_data)):
+        if len(data) > 256:
+            raise ValueError(f"{name} exceeds 256 bytes")
     units = round(doc["meta"]["unitsPerStaffSpace"])
-    fixed = struct.pack("<4sBBHHHHH", MAGIC, VERSION, 0, len(measures),
-                        len(play_order), len(blocks), units, len(title_data))
-    pre_offset_size = (len(fixed) + len(title_data) + 2 * len(play_order)
+    fixed = struct.pack("<4sBBHHHHHHH", MAGIC, VERSION, 0, len(measures),
+                        len(play_order), len(blocks), units, len(title_data),
+                        len(composer_data), len(arranger_data))
+    pre_offset_size = (len(fixed) + len(title_data) + len(composer_data)
+                       + len(arranger_data) + 2 * len(play_order)
                        + 4 * len(blocks) + 4 * len(measures))
 
     offsets = []
@@ -192,7 +203,7 @@ def emit(doc, title):
         offsets.append(pos)
         pos += len(b)
 
-    out = [fixed, title_data]
+    out = [fixed, title_data, composer_data, arranger_data]
     out.append(struct.pack(f"<{len(play_order)}H", *play_order))
     out.append(struct.pack(f"<{len(offsets)}I", *offsets))
     out.extend(block_bytes)
@@ -208,8 +219,9 @@ def main():
     args = ap.parse_args()
 
     doc = json.loads(args.json_file.read_text())
-    title = args.title or doc["meta"]["source"]
-    data = emit(doc, title)
+    meta = doc["meta"]
+    title = args.title or meta.get("title") or meta["source"]
+    data = emit(doc, title, meta.get("composer", ""), meta.get("arranger", ""))
 
     out_path = args.output or args.json_file.with_name(
         args.json_file.name.replace(".primitives.json", "") + ".cpmx")

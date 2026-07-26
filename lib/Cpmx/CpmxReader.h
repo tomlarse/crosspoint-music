@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <memory>
 
-/// Streaming reader for the .cpmx v1 sheet-music format.
+/// Streaming reader for the .cpmx v2 sheet-music format.
 /// Spec + validation contract: docs/music/cpmx-format-draft.md.
 /// Reference implementation: converter/cpmx_render.py.
 ///
@@ -15,7 +15,7 @@
 /// in the file — the whole score never sits in RAM.
 namespace cpmx {
 
-constexpr uint8_t FORMAT_VERSION = 1;
+constexpr uint8_t FORMAT_VERSION = 2;
 /// Coordinates are staff spaces in i16 fixed point, 1/64 staff space.
 constexpr int COORD_FP_SHIFT = 6;
 /// Glyph scale fixed point (1/1024).
@@ -74,9 +74,10 @@ struct MeasureView {
   int16_t yMinFp = 0, yMaxFp = 0;
   uint8_t headerIdx = 0;
   uint8_t flags = 0;
-  PrimList prims;       // default content
-  PrimList splitStart;  // continuation halves (flags bit0)
-  PrimList splitEnd;    // departing halves (flags bit1)
+  uint16_t beatsX8 = 0;  // metronome beats sounding, 1/8 fixed point (0 = unknown)
+  PrimList prims;        // default content
+  PrimList splitStart;   // continuation halves (flags bit0)
+  PrimList splitEnd;     // departing halves (flags bit1)
 };
 
 struct HeaderBlockView {
@@ -100,6 +101,8 @@ class CpmxReader {
   uint16_t measureCount() const { return measureCount_; }
   uint8_t headerBlockCount() const { return headerBlockCount_; }
   const char* title() const { return title_ ? title_.get() : ""; }
+  const char* composer() const { return composer_ ? composer_.get() : ""; }
+  const char* arranger() const { return arranger_ ? arranger_.get() : ""; }
 
   /// Performance sequence length (repeats unrolled). Falls back to
   /// measureCount when the file has no explicit playOrder.
@@ -126,6 +129,8 @@ class CpmxReader {
   uint32_t fileSize_ = 0;
   uint32_t maxRecordSize_ = 0;
   std::unique_ptr<char[]> title_;
+  std::unique_ptr<char[]> composer_;
+  std::unique_ptr<char[]> arranger_;
   std::unique_ptr<uint8_t[]> playOrder_;  // u16 LE * playOrderLen_
   std::unique_ptr<uint8_t[]> offsets_;    // u32 LE * (blocks + measures)
   std::unique_ptr<uint8_t[]> record_;     // reusable record buffer

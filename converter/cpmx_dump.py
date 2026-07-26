@@ -62,6 +62,8 @@ def main():
 
     doc = {
         "title": cpmx["title"].encode("utf-8").hex(),
+        "composer": cpmx["composer"].encode("utf-8").hex(),
+        "arranger": cpmx["arranger"].encode("utf-8").hex(),
         "units": cpmx["unitsPerStaffSpace"],
         "playOrder": cpmx["playOrder"],
         "blocks": [{"advance": fp(b["advance"]),
@@ -69,7 +71,7 @@ def main():
                    for b in cpmx["blocks"]],
         "measures": [{"width": fp(m["width"]),
                       "yMin": fp(m["yMin"]), "yMax": fp(m["yMax"]),
-                      "headerIdx": m["headerIdx"],
+                      "headerIdx": m["headerIdx"], "beatsX8": m["beatsX8"],
                       "prims": [dump_prim(p) for p in m["primitives"]],
                       "splitStart": [dump_prim(p) for p in m.get("splitAtStart", [])],
                       "splitEnd": [dump_prim(p) for p in m.get("splitAtEnd", [])]}

@@ -112,6 +112,11 @@ Decided during Phase 1 (2026-07-15):
   and glyphs pixelate. 5 px is the practical minimum for now; if smaller
   is ever wanted, it needs sub-pixel-aware placement (e.g. even-only staff
   spaces or 2x supersampled glyph variants).
+- **Music-adapted menu system** (added 2026-07-26): the viewer currently
+  borrows the e-book input model (Confirm cycles size, no in-reader menu).
+  Music needs its own menu: jump to rehearsal mark/measure, setlist
+  switching, size, auto-page-turn toggle/BPM — reachable with gloves on.
+  Natural home for everything that today squats on single buttons.
 
 Still open:
 
