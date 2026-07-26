@@ -88,10 +88,17 @@ Decided during Phase 1 (2026-07-15):
 - ~~**Setlists / march orders**~~ **v1 done 2026-07-26**: `.cpsl` text
   files (one `.cpmx` path per line, `#` comments, relative or absolute
   paths, max 64 pieces) open like books; the reader flows forward and
-  backward across piece boundaries and remembers the position per setlist
-  (piece index + playOrder position, crash-safe). End screen only after
-  the last piece. Remaining niceties for the menu/library-app work:
-  on-device setlist picking mid-gig, authoring/reordering.
+  backward across piece boundaries. Setlists always start from the top
+  (no saved position — a gig is performed from the first piece) and show
+  the normal end screen only after the last piece. When cover pages land,
+  cross-piece transitions go directly to the next piece's cover (which is
+  also the arming point for tempo-based auto page turn).
+- **On-device setlist CRUD** (added 2026-07-26): an interface on the
+  device for managing march orders without a computer — create a new
+  .cpsl, add/remove pieces, reorder, delete a list, and pick/switch the
+  active list mid-gig. Belongs to the music-adapted menu system work;
+  the library app becomes the comfortable authoring place later, but
+  the device must be able to stand alone at a rehearsal.
 - **Cover page** per piece: title, composer, arranger shown when opening
   (and as the boundary between pieces in a setlist). Requires format
   metadata beyond the title — composer/arranger strings in the header →
