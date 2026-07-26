@@ -620,6 +620,7 @@ void MusicReaderActivity::renderCover() {
                                         NOTOSERIF_12_FONT_ID};
   int titleFont = TITLE_FONTS[3];
   for (const int fontId : TITLE_FONTS) {
+    // cppcheck-suppress useStlAlgorithm
     if (renderer.getTextWidth(fontId, title, EpdFontFamily::BOLD) <= screenW - 2 * COVER_MARGIN_PX) {
       titleFont = fontId;
       break;
