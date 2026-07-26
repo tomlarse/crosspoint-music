@@ -33,3 +33,11 @@ converter/tools/
 converter/testdata/*.pdf
 converter/fontsrc/
 test/conformance/build/
+
+/managed_components
+/.dummy
+/CMakeLists.txt
+/dependencies.lock
+/sdkconfig.default
+/sdkconfig.defaults
+sdkconfig.sticky
