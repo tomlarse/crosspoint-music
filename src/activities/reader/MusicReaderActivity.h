@@ -43,6 +43,8 @@ class MusicReaderActivity final : public Activity {
   void cycleStaffSize();
   bool layoutPage(uint16_t startPos);
   void renderPage();
+  void showCover();
+  void renderCover();
   void renderEndScreen();
   bool handleEndScreenInput();
   void drawSystem(const SystemLayout& system, int oy);
@@ -80,6 +82,11 @@ class MusicReaderActivity final : public Activity {
   size_t previousPageCount_ = 0;
   EndOfBookOptions endOfBookOptions_;
   bool atEnd_ = false;
+  // Cover state: the piece's title page, shown ahead of the first music page.
+  // The page layout for pagePos_ is always valid while the cover shows, so
+  // leaving it is a plain renderPage(). Also the future arming point for
+  // tempo-based auto page turn (#4).
+  bool atCover_ = false;
   SystemLayout systems_[MAX_SYSTEMS_PER_PAGE] = {};
   size_t systemCount_ = 0;
   // fillPolygon scratch for curve/beam points (heap: 2 KB would be too much
