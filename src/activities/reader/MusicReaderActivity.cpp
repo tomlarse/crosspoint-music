@@ -562,10 +562,14 @@ void MusicReaderActivity::drawPrim(const cpmx::Prim& prim, const int ox, const i
 
 void MusicReaderActivity::pageForward() {
   if (nextPagePos_ >= reader.playOrderLength()) {
-    // Past the last page: flow into the next setlist piece, or show the
-    // end screen with next-piece suggestions after the last one.
-    if (setlistMode_ && setlistIdx_ + 1 < setlist_.count()) {
-      goToNextPiece();
+    // Past the last page. A setlist is a gig in progress: flow straight into
+    // the next piece, and at the very end just stay on the last page — the
+    // end screen with book suggestions never belongs mid-march. (When cover
+    // pages land, this transition goes directly to the next piece's cover.)
+    if (setlistMode_) {
+      if (setlistIdx_ + 1 < setlist_.count()) {
+        goToNextPiece();
+      }
       return;
     }
     atEnd_ = true;
