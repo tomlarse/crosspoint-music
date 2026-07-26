@@ -3,7 +3,10 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #if defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
+// The simulator shim declares HWCDC in HardwareSerial.h and has no HWCDC.h
+#if __has_include(<HWCDC.h>)
 #include <HWCDC.h>
+#endif
 #endif
 
 #include <string>
