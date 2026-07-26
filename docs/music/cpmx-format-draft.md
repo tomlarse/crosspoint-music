@@ -145,6 +145,9 @@ firmware reader must fail cleanly (LOG_ERR + refuse to open), never crash.
 - Every multi-byte read bounds-checked against file size (and `memcpy`'d,
   never cast — RISC-V alignment).
 - `playOrder[i] < measureCount` for all i.
+- Header strings (title/composer/arranger) must be valid UTF-8 with no
+  embedded NUL bytes → reject otherwise (both readers enforce this
+  identically).
 - `systemHeaderIdx < headerBlockCount` for every measure.
 - Unknown primitive tag, unknown measure flag bits (above bit1), or a
   truncated primitive payload → reject.

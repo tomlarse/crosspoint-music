@@ -133,6 +133,8 @@ def load_cpmx(path):
     title = r.take_bytes(title_len).decode("utf-8")
     composer = r.take_bytes(composer_len).decode("utf-8")
     arranger = r.take_bytes(arranger_len).decode("utf-8")
+    if "\x00" in title or "\x00" in composer or "\x00" in arranger:
+        sys.exit("error: NUL byte in metadata string")
     play_order = [r.take("H") for _ in range(n_order)]
     if any(i >= n_measures for i in play_order):
         sys.exit("error: playOrder index out of range")

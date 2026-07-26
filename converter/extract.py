@@ -611,6 +611,17 @@ def measure_beats_x8(mx_measures, warnings):
         compound = beat_type == 8 and beats_num % 3 == 0 and beats_num >= 6
         beats = quarters / 1.5 if compound else quarters * beat_type / 4
         x8 = round(beats * 8)
+        # Sanity against the nominal meter: OMR rhythm drift (broken
+        # tuplets etc.) can make a bar overfull, which would skew the
+        # auto-page-turn clock cumulatively. Overfull bars clamp to the
+        # nominal count; underfull bars are kept (real pickups/anacruses).
+        nominal = beats_num // 3 if compound else beats_num
+        nominal_x8 = nominal * 8
+        if x8 > nominal_x8:
+            warnings.append(f"MusicXML measure {m.get('number')}: overfull "
+                            f"({beats:.2f} beats in {beats_num}/{beat_type}), "
+                            f"clamped to {nominal} — check the source rhythm")
+            x8 = nominal_x8
         if not 0 < x8 <= 0xFFFF:
             if x8 != 0:
                 warnings.append(f"MusicXML measure {m.get('number')}: "

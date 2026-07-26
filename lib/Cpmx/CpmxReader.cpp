@@ -72,6 +72,55 @@ uint32_t primSize(const uint8_t* p, const uint8_t* end) {
   return 0;  // unknown tag
 }
 
+/// Strict UTF-8 validation, rejecting NUL bytes, overlong encodings,
+/// surrogates and out-of-range codepoints — matches what Python's
+/// str.decode("utf-8") accepts (minus its tolerance for NUL).
+bool isValidUtf8(const uint8_t* s, const uint16_t len) {
+  uint16_t i = 0;
+  while (i < len) {
+    const uint8_t b = s[i];
+    if (b == 0) {
+      return false;  // would truncate the C-string API
+    }
+    if (b < 0x80) {
+      i++;
+      continue;
+    }
+    uint8_t n;     // continuation bytes
+    uint32_t cp;   // decoded codepoint
+    uint32_t min;  // smallest codepoint for this length (overlong check)
+    if ((b & 0xE0) == 0xC0) {
+      n = 1;
+      cp = b & 0x1F;
+      min = 0x80;
+    } else if ((b & 0xF0) == 0xE0) {
+      n = 2;
+      cp = b & 0x0F;
+      min = 0x800;
+    } else if ((b & 0xF8) == 0xF0) {
+      n = 3;
+      cp = b & 0x07;
+      min = 0x10000;
+    } else {
+      return false;
+    }
+    if (i + n >= len) {
+      return false;
+    }
+    for (uint8_t k = 1; k <= n; k++) {
+      if ((s[i + k] & 0xC0) != 0x80) {
+        return false;
+      }
+      cp = (cp << 6) | (s[i + k] & 0x3F);
+    }
+    if (cp < min || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {
+      return false;
+    }
+    i += 1 + n;
+  }
+  return true;
+}
+
 /// Parse a PrimitiveList at *pos (validating every primitive's bounds) and
 /// advance *pos past it. Returns false on malformed data.
 bool parseList(const uint8_t** pos, const uint8_t* end, PrimList& out) {
@@ -224,6 +273,13 @@ bool CpmxReader::openInternal(const char* path) {
       return false;
     }
     dst[len] = '\0';
+    // Spec: strings are valid UTF-8 without NUL. Enforce like the Python
+    // reference does — an embedded NUL would silently truncate the C
+    // string API, and invalid UTF-8 must not diverge between readers.
+    if (!isValidUtf8(reinterpret_cast<const uint8_t*>(dst.get()), len)) {
+      LOG_ERR("CPMX", "Invalid UTF-8 in %s", what);
+      return false;
+    }
     return true;
   };
   if (!readString(title_, titleLen, "title") || !readString(composer_, composerLen, "composer") ||
