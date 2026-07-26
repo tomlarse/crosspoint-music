@@ -496,6 +496,11 @@ void MusicReaderActivity::renderEndScreen() {
   renderer.clearScreen();
   endOfBookOptions_.render(renderer, mappedInput);
   renderer.displayBuffer();
+#ifdef SIMULATOR
+  if (std::getenv("CROSSPOINT_MUSIC_SHOT") != nullptr) {
+    ScreenshotUtil::takeScreenshot(renderer);
+  }
+#endif
 }
 
 // Returns true when the event was consumed by the end screen.
@@ -561,6 +566,37 @@ void MusicReaderActivity::loop() {
       nextPagePos_ < reader.playOrderLength()) {
     pageForward();
     return;
+  }
+  // Scripted input for headless testing: CROSSPOINT_MUSIC_SCRIPT is a
+  // comma-separated action list (fwd/back/size), one action per ~700 ms.
+  static const char* script = std::getenv("CROSSPOINT_MUSIC_SCRIPT");
+  static size_t scriptPos = 0;
+  static unsigned long lastAction = 0;
+  if (script != nullptr && reader.isOpen() && millis() - lastAction > 700) {
+    while (script[scriptPos] == ',') {
+      scriptPos++;
+    }
+    if (script[scriptPos] != '\0') {
+      lastAction = millis();
+      if (strncmp(script + scriptPos, "fwd", 3) == 0) {
+        scriptPos += 3;
+        pageForward();
+      } else if (strncmp(script + scriptPos, "back", 4) == 0) {
+        scriptPos += 4;
+        if (atEnd_) {
+          atEnd_ = false;
+          renderPage();
+        } else {
+          pageBack();
+        }
+      } else if (strncmp(script + scriptPos, "size", 4) == 0) {
+        scriptPos += 4;
+        cycleStaffSize();
+      } else {
+        scriptPos++;  // unknown byte: skip
+      }
+      return;
+    }
   }
 #endif
 
