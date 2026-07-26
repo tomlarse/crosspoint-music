@@ -54,7 +54,7 @@ PDF/image ─OMR──┘        │
 
 1. **Converter prototype** (desktop, no hardware — ~80% of the risk lives here):
    MusicXML in → per-measure primitive dump (JSON first, binary later) → SVG preview re-renderer for visual verification. Start with a simple monophonic melody.
-2. **`.cpmx` spec**: ~~freeze v1~~ **done 2026-07-15** — v1 frozen and implemented (converter/cpmx_emit.py + cpmx_render.py reader/simulator); binary round-trips at 0.000% against the JSON pipeline on all test pieces.
+2. **`.cpmx` spec**: ~~freeze v1~~ **done 2026-07-15**, superseded by **v2 (frozen 2026-07-26)** — adds title/composer/arranger metadata and per-measure beatsX8; implemented in converter/cpmx_emit.py, cpmx_render.py and lib/Cpmx, guarded by the conformance test. v2 readers reject v1 files.
 3. **Firmware viewer**: new activity + Bravura glyphs via the EpdFont pipeline + measure-packing layout + `.crosspoint` caching. Follow all existing HAL/heap/activity-lifecycle rules in the root CLAUDE.md.
 4. **OMR pipeline**: wire Audiveris/oemer in front of the converter for PDF/image input. Spiked early (works, see converter/README.md); what remains is packaging.
 5. **Sheet music library app** (vision, 2026-07-25): a desktop "music library" application with conversion and device sync built in — the Calibre + CrossPoint-plugin model, but for scores. Import PDF/MusicXML into the library, conversion (incl. OMR) happens inside the app, and the repertoire syncs to the device over USB/Wi-Fi. Today's CLI converter becomes the app's backend; the firmware's existing wireless transfer endpoints are the sync target. One band member curates, everyone gets the same small `.cpmx` files.
@@ -64,7 +64,7 @@ PDF/image ─OMR──┘        │
 - ~~**Slurs/ties across line breaks**~~: **solved in the converter prototype** (2026-07-15). The converter re-renders the piece once with a forced system break before every measure (`<print new-system="yes"/>` + `breaks: encoded`); Verovio then engraves every crossing curve split, and the halves are harvested as `splitAtEnd`/`splitAtStart` variants per measure, aligned to the master render via notehead anchors. The layout stage swaps whole curve ↔ halves depending on where breaks fall. Note: Verovio only draws the *departing* half at a break (no arriving stub in the continuation measure) — we match that convention.
 - **System headers**: clef + key signature must be re-inserted at every system start; converter emits them as separate primitive blocks per (clef, key) combination.
 - ~~**Multi-staff (piano/grand staff)**~~: no longer a problem — out of scope entirely (see Use case). The format stays single-staff.
-- **Zoom**: 2–3 fixed staff sizes (bitmap glyphs), not free scaling.
+- **Zoom**: six fixed staff sizes, XX Small through X Large (bitmap glyphs at 5–16 px per staff space), not free scaling.
 
 ## Constraints to watch
 
@@ -85,16 +85,20 @@ Decided during Phase 1 (2026-07-15):
 
 ## Feature backlog (from field testing, 2026-07-25)
 
-- **Setlists / march orders** ("marsjrekkefølge"): a playlist of pieces the
-  reader flows through in order — page forward past the end of one piece
-  and the next one's first page appears. Bands keep a few semi-fixed
-  standard orders (street parade, drill show) that change per season, plus
-  ad-hoc orders per gig, so: multiple named setlists, easy to switch.
-  Design sketch: a setlist is a small text file on SD listing `.cpmx`
-  paths in order; the file browser shows setlists as openable items; the
-  sheet music library app becomes the comfortable place to author them,
-  with on-device reordering as a later nicety. Open question: the
-  on-device UI for picking/switching setlists mid-gig with gloves on.
+- ~~**Setlists / march orders**~~ **v1 done 2026-07-26**: `.cpsl` text
+  files (one `.cpmx` path per line, `#` comments, relative or absolute
+  paths, max 64 pieces) open like books; the reader flows forward and
+  backward across piece boundaries. Setlists always start from the top
+  (no saved position — a gig is performed from the first piece) and show
+  the normal end screen only after the last piece. When cover pages land,
+  cross-piece transitions go directly to the next piece's cover (which is
+  also the arming point for tempo-based auto page turn).
+- **On-device setlist CRUD** (added 2026-07-26): an interface on the
+  device for managing march orders without a computer — create a new
+  .cpsl, add/remove pieces, reorder, delete a list, and pick/switch the
+  active list mid-gig. Belongs to the music-adapted menu system work;
+  the library app becomes the comfortable authoring place later, but
+  the device must be able to stand alone at a rehearsal.
 - **Cover page** per piece: title, composer, arranger shown when opening
   (and as the boundary between pieces in a setlist). Requires format
   metadata beyond the title — composer/arranger strings in the header →

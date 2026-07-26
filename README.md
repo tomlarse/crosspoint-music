@@ -26,8 +26,8 @@ e-book reader; this firmware adds music on top.
 
 ![Volta brackets and repeats rendered by the firmware](docs/music/images/viewer-volta.png)
 
-- Measure-aware reflow at three staff sizes. Pick Small, Medium or Large in
-  settings, or cycle them with the Confirm button while reading.
+- Measure-aware reflow at six staff sizes, from XX Small to X Large. Pick
+  one in settings, or cycle them with the Confirm button while reading.
 - Page turns follow the music, not the paper. The converter resolves
   repeats and voltas ahead of time, so paging forward always shows what
   you play next. You still see the notation as engraved, repeat signs and
@@ -38,6 +38,19 @@ e-book reader; this firmware adds music on top.
   you reopen it.
 - Landscape is the default orientation in this fork. Scores read better
   that way.
+
+## Setlists
+
+A gig has an order, so the reader supports setlists: a `.cpsl` file is a
+plain text list of `.cpmx` paths, one per line (`#` comments allowed,
+paths relative to the setlist's folder or absolute, up to 64 pieces —
+entries beyond that are ignored with a log message). Open it like a book
+and the reader flows through the pieces — paging past the end of one march
+lands on the first page of the next, and paging back from a piece's first
+page returns to the previous piece's last page. A setlist always starts
+from the top: a rehearsal or gig begins at the first piece, so no position
+is remembered. Keep one file per standard order ("street parade",
+"drill show") and switch by opening the other file.
 
 ## Getting music onto the device
 
@@ -123,7 +136,7 @@ whole piece by itself.
 | Path | What |
 |---|---|
 | [docs/music/PLAN.md](docs/music/PLAN.md) | Project plan, decisions, status |
-| [docs/music/cpmx-format-draft.md](docs/music/cpmx-format-draft.md) | The frozen `.cpmx` v1 binary format spec |
+| [docs/music/cpmx-format-draft.md](docs/music/cpmx-format-draft.md) | The frozen `.cpmx` v2 binary format spec |
 | [converter/](converter/README.md) | MusicXML → primitives → `.cpmx` pipeline |
 | [lib/Cpmx/](lib/Cpmx/CpmxReader.h) | Firmware-side format reader |
 | [src/activities/reader/MusicReaderActivity.cpp](src/activities/reader/MusicReaderActivity.cpp) | The viewer |

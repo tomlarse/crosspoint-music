@@ -1,0 +1,8 @@
+# CodeRabbit configuration — https://docs.coderabbit.ai/reference/configuration
+reviews:
+  pre_merge_checks:
+    # This codebase comments where the code can't speak for itself (see
+    # CLAUDE.md), not one docstring per function — the coverage check
+    # doesn't fit that style.
+    docstrings:
+      mode: off

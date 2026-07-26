@@ -54,9 +54,7 @@ class HalStorage {
     return instance;
   }
 
-  bool openFileForRead(const char* /*moduleName*/, const char* path, HalFile& file) {
-    return file.openRead(path);
-  }
+  bool openFileForRead(const char* /*moduleName*/, const char* path, HalFile& file) { return file.openRead(path); }
   bool openFileForRead(const char* moduleName, const std::string& path, HalFile& file) {
     return openFileForRead(moduleName, path.c_str(), file);
   }

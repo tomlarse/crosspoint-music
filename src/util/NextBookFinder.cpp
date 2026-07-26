@@ -17,7 +17,8 @@ bool isSupportedBookFile(const std::string_view name) {
   // Formats ReaderActivity can open (bmp is a viewer, not a book, so it is excluded).
   // Sheet music counts: end-of-piece suggestions become "next march" in a folder.
   return FsHelpers::hasEpubExtension(name) || FsHelpers::hasXtcExtension(name) || FsHelpers::hasTxtExtension(name) ||
-         FsHelpers::hasMarkdownExtension(name) || FsHelpers::hasCpmxExtension(name);
+         FsHelpers::hasMarkdownExtension(name) || FsHelpers::hasCpmxExtension(name) ||
+         FsHelpers::hasSetlistExtension(name);
 }
 }  // namespace
 

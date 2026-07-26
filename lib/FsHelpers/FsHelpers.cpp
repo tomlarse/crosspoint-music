@@ -173,6 +173,8 @@ bool hasTxtExtension(std::string_view fileName) { return checkFileExtension(file
 
 bool hasCpmxExtension(std::string_view fileName) { return checkFileExtension(fileName, ".cpmx"); }
 
+bool hasSetlistExtension(std::string_view fileName) { return checkFileExtension(fileName, ".cpsl"); }
+
 bool hasMarkdownExtension(std::string_view fileName) { return checkFileExtension(fileName, ".md"); }
 
 bool hasCssExtension(std::string_view fileName) { return checkFileExtension(fileName, ".css"); }
