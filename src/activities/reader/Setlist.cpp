@@ -87,6 +87,7 @@ uint32_t Setlist::fingerprint() const {
   uint32_t h = 2166136261u;
   for (const auto& path : paths_) {
     for (const char c : path) {
+      // cppcheck-suppress useStlAlgorithm
       h = (h ^ static_cast<uint8_t>(c)) * 16777619u;
     }
     h = (h ^ 0xFFu) * 16777619u;  // separator: "ab","c" != "a","bc"
