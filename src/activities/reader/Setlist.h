@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -24,11 +23,6 @@ class Setlist {
 
   size_t count() const { return paths_.size(); }
   const std::string& pieceAt(size_t index) const { return paths_[index]; }
-
-  /// FNV-1a over the resolved paths (order-sensitive). Saved progress carries
-  /// this so a reordered or edited setlist starts fresh instead of resuming
-  /// into the wrong piece.
-  uint32_t fingerprint() const;
 
  private:
   std::vector<std::string> paths_;

@@ -37,7 +37,7 @@ class MusicReaderActivity final : public Activity {
   void goToNextPiece();
   void goToPreviousPieceEnd();
   void recoverPiece(size_t index, uint16_t position);
-  void loadProgress(size_t& pieceIndexOut, uint16_t& positionOut);
+  void loadProgress(uint16_t& positionOut);
   void saveProgress();
   void restoreToPosition(uint16_t targetPos);
   void cycleStaffSize();

@@ -47,8 +47,9 @@ paths relative to the setlist's folder or absolute, up to 64 pieces —
 entries beyond that are ignored with a log message). Open it like a book
 and the reader flows through the pieces — paging past the end of one march
 lands on the first page of the next, and paging back from a piece's first
-page returns to the previous piece's last page. Your position in the
-setlist is remembered. Keep one file per standard order ("street parade",
+page returns to the previous piece's last page. A setlist always starts
+from the top: a rehearsal or gig begins at the first piece, so no position
+is remembered. Keep one file per standard order ("street parade",
 "drill show") and switch by opening the other file.
 
 ## Getting music onto the device
