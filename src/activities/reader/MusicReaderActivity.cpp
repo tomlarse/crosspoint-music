@@ -599,9 +599,14 @@ void MusicReaderActivity::showCover() {
 
 void MusicReaderActivity::renderCover() {
   renderer.clearScreen();
-  const int screenW = renderer.getScreenWidth();
-  const int screenH = renderer.getScreenHeight();
+  // Center within the physically viewable area (bezel margins vary with
+  // orientation), with breathing room on top of the TRBL insets.
+  int vTop = 0, vRight = 0, vBottom = 0, vLeft = 0;
+  renderer.getOrientedViewableTRBL(&vTop, &vRight, &vBottom, &vLeft);
   constexpr int COVER_MARGIN_PX = 24;
+  const int left = vLeft + COVER_MARGIN_PX;
+  const int usableW = renderer.getScreenWidth() - vLeft - vRight - 2 * COVER_MARGIN_PX;
+  const int screenH = renderer.getScreenHeight();
 
   // Title from the piece metadata; a file without one shows its filename.
   const char* title = reader.title();
@@ -621,7 +626,7 @@ void MusicReaderActivity::renderCover() {
   int titleFont = TITLE_FONTS[3];
   for (const int fontId : TITLE_FONTS) {
     // cppcheck-suppress useStlAlgorithm
-    if (renderer.getTextWidth(fontId, title, EpdFontFamily::BOLD) <= screenW - 2 * COVER_MARGIN_PX) {
+    if (renderer.getTextWidth(fontId, title, EpdFontFamily::BOLD) <= usableW) {
       titleFont = fontId;
       break;
     }
@@ -629,19 +634,25 @@ void MusicReaderActivity::renderCover() {
 
   int y = screenH / 3;
   const int titleW = renderer.getTextWidth(titleFont, title, EpdFontFamily::BOLD);
-  renderer.drawText(titleFont, (screenW - titleW) / 2, y, title, true, EpdFontFamily::BOLD);
+  renderer.drawText(titleFont, left + (usableW - titleW) / 2, y, title, true, EpdFontFamily::BOLD);
   y += 2 * renderer.getFontAscenderSize(titleFont);
 
   if (reader.composer()[0] != '\0') {
     const int w = renderer.getTextWidth(NOTOSERIF_14_FONT_ID, reader.composer());
-    renderer.drawText(NOTOSERIF_14_FONT_ID, (screenW - w) / 2, y, reader.composer(), true);
+    renderer.drawText(NOTOSERIF_14_FONT_ID, left + (usableW - w) / 2, y, reader.composer(), true);
     y += 2 * renderer.getFontAscenderSize(NOTOSERIF_14_FONT_ID);
   }
   if (reader.arranger()[0] != '\0') {
-    char line[300];
-    snprintf(line, sizeof(line), "%s %s", tr(STR_MUSIC_ARR_ABBR), reader.arranger());
-    const int w = renderer.getTextWidth(NOTOSERIF_12_FONT_ID, line, EpdFontFamily::ITALIC);
-    renderer.drawText(NOTOSERIF_12_FONT_ID, (screenW - w) / 2, y, line, true, EpdFontFamily::ITALIC);
+    // Draw "arr." and the name as two adjacent runs: the arranger string can
+    // be up to 256 bytes (format ceiling), too large to compose on the stack.
+    const char* abbr = tr(STR_MUSIC_ARR_ABBR);
+    const char* name = reader.arranger();
+    const int spaceW = renderer.getSpaceWidth(NOTOSERIF_12_FONT_ID, EpdFontFamily::ITALIC);
+    const int abbrW = renderer.getTextWidth(NOTOSERIF_12_FONT_ID, abbr, EpdFontFamily::ITALIC);
+    const int nameW = renderer.getTextWidth(NOTOSERIF_12_FONT_ID, name, EpdFontFamily::ITALIC);
+    const int x = left + (usableW - (abbrW + spaceW + nameW)) / 2;
+    renderer.drawText(NOTOSERIF_12_FONT_ID, x, y, abbr, true, EpdFontFamily::ITALIC);
+    renderer.drawText(NOTOSERIF_12_FONT_ID, x + abbrW + spaceW, y, name, true, EpdFontFamily::ITALIC);
   }
 
   // Setlist position, small at the bottom: where you are in the gig.
@@ -650,8 +661,8 @@ void MusicReaderActivity::renderCover() {
     snprintf(pos, sizeof(pos), "%u / %u", static_cast<unsigned>(setlistIdx_ + 1),
              static_cast<unsigned>(setlist_.count()));
     const int w = renderer.getTextWidth(UI_10_FONT_ID, pos);
-    renderer.drawText(UI_10_FONT_ID, (screenW - w) / 2,
-                      screenH - COVER_MARGIN_PX - renderer.getFontAscenderSize(UI_10_FONT_ID), pos, true);
+    renderer.drawText(UI_10_FONT_ID, left + (usableW - w) / 2,
+                      screenH - vBottom - COVER_MARGIN_PX - renderer.getFontAscenderSize(UI_10_FONT_ID), pos, true);
   }
 
   renderer.displayBuffer();
