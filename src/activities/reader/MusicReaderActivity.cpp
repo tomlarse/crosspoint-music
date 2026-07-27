@@ -347,8 +347,11 @@ void MusicReaderActivity::armAutoPage() {
   }
   const uint32_t beatsX8 =
       pageBeatsX8_ > AUTO_PAGE_LEAD_BEATS_X8 ? pageBeatsX8_ - AUTO_PAGE_LEAD_BEATS_X8 : pageBeatsX8_ / 2;
-  // ms = (beatsX8 / 8) * 60000 / bpm = beatsX8 * 7500 / bpm
-  const uint32_t ms = beatsX8 * 7500u / SETTINGS.musicTempoBpm;
+  // ms = (beatsX8 / 8) * 60000 / bpm = beatsX8 * 7500 / bpm. 64-bit and
+  // clamped: a pathological file could overflow 32 bits (7500 * beatsX8).
+  constexpr uint32_t MAX_AUTO_MS = 60u * 60u * 1000u;  // one hour
+  const uint64_t ms64 = static_cast<uint64_t>(beatsX8) * 7500u / SETTINGS.musicTempoBpm;
+  const uint32_t ms = ms64 > MAX_AUTO_MS ? MAX_AUTO_MS : static_cast<uint32_t>(ms64);
   LOG_DBG("MUSIC", "Auto page armed: %u beatsX8 on page, turn in %u ms", static_cast<unsigned>(pageBeatsX8_),
           static_cast<unsigned>(ms));
   autoDeadline_ = millis() + ms;
@@ -835,7 +838,8 @@ void MusicReaderActivity::loop() {
   }
 #endif
 
-  if (autoArmed_ && millis() >= autoDeadline_) {
+  // Signed-difference comparison survives millis() wraparound (49.7 days).
+  if (autoArmed_ && static_cast<long>(millis() - autoDeadline_) >= 0) {
     autoArmed_ = false;
     pageForward();  // re-arms for the new page; covers and the end disarm
     return;
