@@ -54,8 +54,9 @@ class MusicReaderActivity final : public Activity {
   void drawStaffLines(int ox, int oy, int widthPx);
   void showError();
 
-  void pageForward();
+  void pageForward(bool fromAutoTurn = false);
   void pageBack();
+  void armAutoPage(bool leadAlreadySpent);
 
   /// Fixed-point staff spaces (1/64) -> screen px at the current staff size.
   int fpToPx(int32_t fp) const { return static_cast<int>((fp * staffSpacePx_) >> cpmx::COORD_FP_SHIFT); }
@@ -84,9 +85,15 @@ class MusicReaderActivity final : public Activity {
   bool atEnd_ = false;
   // Cover state: the piece's title page, shown ahead of the first music page.
   // The page layout for pagePos_ is always valid while the cover shows, so
-  // leaving it is a plain renderPage(). Also the future arming point for
-  // tempo-based auto page turn (#4).
+  // leaving it is a plain renderPage(). Leaving the cover is also the arming
+  // point for tempo-based auto page turn.
   bool atCover_ = false;
+  // Tempo-based auto page turn: layoutPage() sums the page's beatsX8, and
+  // every forward page entry re-arms a millis() deadline. Manual back and
+  // covers disarm — the player is in charge, the timer just follows.
+  uint32_t pageBeatsX8_ = 0;
+  bool autoArmed_ = false;
+  unsigned long autoDeadline_ = 0;
   SystemLayout systems_[MAX_SYSTEMS_PER_PAGE] = {};
   size_t systemCount_ = 0;
   // fillPolygon scratch for curve/beam points (heap: 2 KB would be too much

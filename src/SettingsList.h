@@ -258,7 +258,11 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         SettingInfo::Enum(StrId::STR_MUSIC_SIZE, &CrossPointSettings::musicStaffSize,
                           {StrId::STR_XX_SMALL, StrId::STR_X_SMALL, StrId::STR_SMALL, StrId::STR_MEDIUM,
                            StrId::STR_LARGE, StrId::STR_X_LARGE},
-                          "musicStaffSize", StrId::STR_CAT_READER),
+                          "musicStaffSize", StrId::STR_CAT_MUSIC),
+        SettingInfo::Toggle(StrId::STR_MUSIC_AUTO_PAGE, &CrossPointSettings::musicAutoPage, "musicAutoPage",
+                            StrId::STR_CAT_MUSIC),
+        SettingInfo::Value(StrId::STR_MUSIC_TEMPO, &CrossPointSettings::musicTempoBpm, {60, 180, 4}, "musicTempoBpm",
+                           StrId::STR_CAT_MUSIC),
         SettingInfo::Toggle(StrId::STR_EXTRA_SPACING, &CrossPointSettings::extraParagraphSpacing,
                             "extraParagraphSpacing", StrId::STR_CAT_READER)
             .withTextSettings(),
