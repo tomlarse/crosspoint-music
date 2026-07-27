@@ -339,14 +339,21 @@ bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
 // The turn fires AUTO_PAGE_LEAD_BEATS_X8 early: the player has already read
 // the last measure when playing it, and the e-ink refresh finishes before
 // the music runs out.
-void MusicReaderActivity::armAutoPage() {
+//
+// leadAlreadySpent: a page armed BY an automatic turn started its clock two
+// beats before its music actually begins (the previous page turned early),
+// so it runs the full duration — subtracting the lead again every page
+// would drift one lead earlier per turn. Only manual entries (leaving the
+// cover, a manual forward) subtract the lead.
+void MusicReaderActivity::armAutoPage(const bool leadAlreadySpent) {
   constexpr uint32_t AUTO_PAGE_LEAD_BEATS_X8 = 16;  // 2 metronome beats
   if (!SETTINGS.musicAutoPage || SETTINGS.musicTempoBpm == 0 || pageBeatsX8_ == 0) {
     autoArmed_ = false;
     return;
   }
-  const uint32_t beatsX8 =
-      pageBeatsX8_ > AUTO_PAGE_LEAD_BEATS_X8 ? pageBeatsX8_ - AUTO_PAGE_LEAD_BEATS_X8 : pageBeatsX8_ / 2;
+  const uint32_t beatsX8 = leadAlreadySpent                         ? pageBeatsX8_
+                           : pageBeatsX8_ > AUTO_PAGE_LEAD_BEATS_X8 ? pageBeatsX8_ - AUTO_PAGE_LEAD_BEATS_X8
+                                                                    : pageBeatsX8_ / 2;
   // ms = (beatsX8 / 8) * 60000 / bpm = beatsX8 * 7500 / bpm. 64-bit and
   // clamped: a pathological file could overflow 32 bits (7500 * beatsX8).
   constexpr uint32_t MAX_AUTO_MS = 60u * 60u * 1000u;  // one hour
@@ -562,13 +569,13 @@ void MusicReaderActivity::drawPrim(const cpmx::Prim& prim, const int ox, const i
   }
 }
 
-void MusicReaderActivity::pageForward() {
+void MusicReaderActivity::pageForward(const bool fromAutoTurn) {
   if (atCover_) {
     // Leave the cover onto the first page (layout is already current).
     // The auto-page clock starts here, so the first turn is on tempo.
     atCover_ = false;
     renderPage();
-    armAutoPage();
+    armAutoPage(false);
     return;
   }
   if (nextPagePos_ >= reader.playOrderLength()) {
@@ -596,7 +603,7 @@ void MusicReaderActivity::pageForward() {
   previousPages_[previousPageCount_++] = pagePos_;
   pagePos_ = newPos;
   renderPage();
-  armAutoPage();  // every forward entry restarts the page clock
+  armAutoPage(fromAutoTurn);  // every forward entry restarts the page clock
   // Debounced progress save (SD wear): every 8 turns and on exit.
   if (++pageTurnsSinceSave_ >= 8) {
     saveProgress();
@@ -788,7 +795,7 @@ void MusicReaderActivity::cycleStaffSize() {
     } else {
       renderPage();
       if (autoArmed_) {
-        armAutoPage();  // page boundaries moved: restart this page's clock
+        armAutoPage(false);  // page boundaries moved: restart this page's clock
       }
     }
   }
@@ -841,7 +848,9 @@ void MusicReaderActivity::loop() {
   // Signed-difference comparison survives millis() wraparound (49.7 days).
   if (autoArmed_ && static_cast<long>(millis() - autoDeadline_) >= 0) {
     autoArmed_ = false;
-    pageForward();  // re-arms for the new page; covers and the end disarm
+    // Re-arms for the new page (full duration: the lead is already spent by
+    // turning early); covers and the end screen disarm.
+    pageForward(/*fromAutoTurn=*/true);
     return;
   }
 

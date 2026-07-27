@@ -54,9 +54,9 @@ class MusicReaderActivity final : public Activity {
   void drawStaffLines(int ox, int oy, int widthPx);
   void showError();
 
-  void pageForward();
+  void pageForward(bool fromAutoTurn = false);
   void pageBack();
-  void armAutoPage();
+  void armAutoPage(bool leadAlreadySpent);
 
   /// Fixed-point staff spaces (1/64) -> screen px at the current staff size.
   int fpToPx(int32_t fp) const { return static_cast<int>((fp * staffSpacePx_) >> cpmx::COORD_FP_SHIFT); }
