@@ -28,11 +28,13 @@
 #include "fontIds.h"
 
 const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,
-                                                              StrId::STR_CAT_CONTROLS, StrId::STR_CAT_SYSTEM};
+                                                              StrId::STR_CAT_MUSIC, StrId::STR_CAT_CONTROLS,
+                                                              StrId::STR_CAT_SYSTEM};
 
 void SettingsActivity::rebuildSettingsLists() {
   displaySettings.clear();
   readerSettings.clear();
+  musicSettings.clear();
   controlsSettings.clear();
   systemSettings.clear();
 
@@ -54,6 +56,8 @@ void SettingsActivity::rebuildSettingsLists() {
       // (they stay in the shared list for the web settings API)
       if (setting.inTextSettings) continue;
       readerSettings.push_back(setting);
+    } else if (setting.category == StrId::STR_CAT_MUSIC) {
+      musicSettings.push_back(setting);
     } else if (setting.category == StrId::STR_CAT_CONTROLS) {
       if (setting.valuePtr == &CrossPointSettings::pwrBtnFootnoteBack &&
           SETTINGS.shortPwrBtn != CrossPointSettings::SHORT_PWRBTN::FOOTNOTES) {
@@ -95,9 +99,12 @@ void SettingsActivity::rebuildSettingsLists() {
       currentSettings = &readerSettings;
       break;
     case 2:
-      currentSettings = &controlsSettings;
+      currentSettings = &musicSettings;
       break;
     case 3:
+      currentSettings = &controlsSettings;
+      break;
+    case 4:
       currentSettings = &systemSettings;
       break;
   }
@@ -141,9 +148,12 @@ void SettingsActivity::loop() {
         currentSettings = &readerSettings;
         break;
       case 2:
-        currentSettings = &controlsSettings;
+        currentSettings = &musicSettings;
         break;
       case 3:
+        currentSettings = &controlsSettings;
+        break;
+      case 4:
         currentSettings = &systemSettings;
         break;
     }

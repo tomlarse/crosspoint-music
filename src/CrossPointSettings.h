@@ -283,6 +283,11 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t imageRendering = IMAGES_DISPLAY;
   // Sheet music staff size for the .cpmx viewer
   uint8_t musicStaffSize = MUSIC_SIZE_M;
+  // Tempo-based auto page turn (.cpmx viewer): the page's beat count comes
+  // from the format's per-measure beatsX8, so the viewer knows exactly how
+  // long a page lasts at a given tempo.
+  uint8_t musicAutoPage = 0;
+  uint8_t musicTempoBpm = 112;  // typical Norwegian street-march tempo
   // Tilt-based page turning (X3 only — requires QMI8658 IMU)
   uint8_t tiltPageTurn = TILT_OFF;
   // Touch screen reader zones/gestures on boards with a touch controller.

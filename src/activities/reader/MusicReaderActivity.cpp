@@ -170,6 +170,7 @@ void MusicReaderActivity::goToPreviousPieceEnd() {
 // reopen the piece the user was on and stay there instead of erroring out.
 void MusicReaderActivity::recoverPiece(const size_t index, const uint16_t position) {
   LOG_ERR("MUSIC", "Setlist piece unopenable, staying on piece %u", static_cast<unsigned>(index));
+  autoArmed_ = false;
   if (!openPiece(index)) {
     showError();
     return;
@@ -274,6 +275,7 @@ void MusicReaderActivity::showError() {
 
 bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
   systemCount_ = 0;
+  pageBeatsX8_ = 0;
   const int usableWidth = renderer.getScreenWidth() - 2 * MARGIN_PX;
   const int pageHeight = renderer.getScreenHeight();
   const int padPx = SYSTEM_PAD_SS * staffSpacePx_;
@@ -294,6 +296,7 @@ bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
       x = fpToPx(block.advanceFp);
     }
     uint16_t count = 0;
+    uint32_t systemBeatsX8 = 0;
     int32_t minFp = MIN_Y_FLOOR_FP;
     int32_t maxFp = MAX_Y_FLOOR_FP;
     while (pos + count < playLen) {
@@ -308,6 +311,7 @@ bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
       }
       x += widthPx;
       count++;
+      systemBeatsX8 += measure.beatsX8;
       if (measure.yMinFp < minFp) {
         minFp = measure.yMinFp;
       }
@@ -323,11 +327,38 @@ bool MusicReaderActivity::layoutPage(const uint16_t startPos) {
       break;
     }
     systems_[systemCount_++] = {pos, count, static_cast<int16_t>(staffTopY)};
+    pageBeatsX8_ += systemBeatsX8;
     pos += count;
     y = bottomY + SYSTEM_GAP_SS * staffSpacePx_;
   }
   nextPagePos_ = pos;
   return systemCount_ > 0;
+}
+
+// Beats on the page x tempo -> a millis() deadline for the automatic turn.
+// The turn fires AUTO_PAGE_LEAD_BEATS_X8 early: the player has already read
+// the last measure when playing it, and the e-ink refresh finishes before
+// the music runs out.
+void MusicReaderActivity::armAutoPage() {
+  constexpr uint32_t AUTO_PAGE_LEAD_BEATS_X8 = 16;  // 2 metronome beats
+  if (!SETTINGS.musicAutoPage || SETTINGS.musicTempoBpm == 0 || pageBeatsX8_ == 0) {
+    autoArmed_ = false;
+    return;
+  }
+  const uint32_t beatsX8 =
+      pageBeatsX8_ > AUTO_PAGE_LEAD_BEATS_X8 ? pageBeatsX8_ - AUTO_PAGE_LEAD_BEATS_X8 : pageBeatsX8_ / 2;
+  // ms = (beatsX8 / 8) * 60000 / bpm = beatsX8 * 7500 / bpm
+  const uint32_t ms = beatsX8 * 7500u / SETTINGS.musicTempoBpm;
+  LOG_DBG("MUSIC", "Auto page armed: %u beatsX8 on page, turn in %u ms", static_cast<unsigned>(pageBeatsX8_),
+          static_cast<unsigned>(ms));
+  autoDeadline_ = millis() + ms;
+  autoArmed_ = true;
+#ifdef SIMULATOR
+  // Flow testing without waiting out real page durations.
+  if (const char* fastMs = std::getenv("CROSSPOINT_MUSIC_AUTO_MS")) {
+    autoDeadline_ = millis() + static_cast<unsigned long>(atoi(fastMs));
+  }
+#endif
 }
 
 void MusicReaderActivity::renderPage() {
@@ -531,9 +562,10 @@ void MusicReaderActivity::drawPrim(const cpmx::Prim& prim, const int ox, const i
 void MusicReaderActivity::pageForward() {
   if (atCover_) {
     // Leave the cover onto the first page (layout is already current).
-    // Auto page turn (#4) arms here, so the first real turn is on tempo.
+    // The auto-page clock starts here, so the first turn is on tempo.
     atCover_ = false;
     renderPage();
+    armAutoPage();
     return;
   }
   if (nextPagePos_ >= reader.playOrderLength()) {
@@ -544,6 +576,7 @@ void MusicReaderActivity::pageForward() {
       return;
     }
     atEnd_ = true;
+    autoArmed_ = false;
     endOfBookOptions_.loadOnce(filePath);
     renderEndScreen();
     return;
@@ -560,6 +593,7 @@ void MusicReaderActivity::pageForward() {
   previousPages_[previousPageCount_++] = pagePos_;
   pagePos_ = newPos;
   renderPage();
+  armAutoPage();  // every forward entry restarts the page clock
   // Debounced progress save (SD wear): every 8 turns and on exit.
   if (++pageTurnsSinceSave_ >= 8) {
     saveProgress();
@@ -567,6 +601,8 @@ void MusicReaderActivity::pageForward() {
 }
 
 void MusicReaderActivity::pageBack() {
+  // Backing up means something is off — the timer never fights the player.
+  autoArmed_ = false;
   if (atCover_) {
     // Back over the cover crosses into the previous setlist piece.
     if (setlistMode_ && setlistIdx_ > 0) {
@@ -594,6 +630,9 @@ void MusicReaderActivity::pageBack() {
 
 void MusicReaderActivity::showCover() {
   atCover_ = true;
+  // A cover never auto-advances: between pieces the band marches on and the
+  // drum major decides when the next march starts.
+  autoArmed_ = false;
   renderCover();
 }
 
@@ -655,14 +694,22 @@ void MusicReaderActivity::renderCover() {
     renderer.drawText(NOTOSERIF_12_FONT_ID, x + abbrW + spaceW, y, name, true, EpdFontFamily::ITALIC);
   }
 
-  // Setlist position, small at the bottom: where you are in the gig.
+  // Bottom lines, small: setlist position ("where in the gig"), and the
+  // armed tempo when auto page turn is on — visible before stepping off.
+  int bottomY = screenH - vBottom - COVER_MARGIN_PX - renderer.getFontAscenderSize(UI_10_FONT_ID);
   if (setlistMode_) {
     char pos[24];
     snprintf(pos, sizeof(pos), "%u / %u", static_cast<unsigned>(setlistIdx_ + 1),
              static_cast<unsigned>(setlist_.count()));
     const int w = renderer.getTextWidth(UI_10_FONT_ID, pos);
-    renderer.drawText(UI_10_FONT_ID, left + (usableW - w) / 2,
-                      screenH - vBottom - COVER_MARGIN_PX - renderer.getFontAscenderSize(UI_10_FONT_ID), pos, true);
+    renderer.drawText(UI_10_FONT_ID, left + (usableW - w) / 2, bottomY, pos, true);
+    bottomY -= 2 * renderer.getFontAscenderSize(UI_10_FONT_ID);
+  }
+  if (SETTINGS.musicAutoPage) {
+    char tempo[40];
+    snprintf(tempo, sizeof(tempo), "%s · %u", tr(STR_MUSIC_AUTO_PAGE), static_cast<unsigned>(SETTINGS.musicTempoBpm));
+    const int w = renderer.getTextWidth(UI_10_FONT_ID, tempo);
+    renderer.drawText(UI_10_FONT_ID, left + (usableW - w) / 2, bottomY, tempo, true);
   }
 
   renderer.displayBuffer();
@@ -737,6 +784,9 @@ void MusicReaderActivity::cycleStaffSize() {
       renderCover();  // size applies once the music shows; stay on the cover
     } else {
       renderPage();
+      if (autoArmed_) {
+        armAutoPage();  // page boundaries moved: restart this page's clock
+      }
     }
   }
 }
@@ -784,6 +834,12 @@ void MusicReaderActivity::loop() {
     }
   }
 #endif
+
+  if (autoArmed_ && millis() >= autoDeadline_) {
+    autoArmed_ = false;
+    pageForward();  // re-arms for the new page; covers and the end disarm
+    return;
+  }
 
   if (atEnd_) {
     handleEndScreenInput();
