@@ -116,7 +116,11 @@ void MusicReaderActivity::onEnter() {
     showError();
     return;
   }
-  renderPage();
+  if (pagePos_ == 0) {
+    showCover();  // opening at the top: start on the piece's cover
+  } else {
+    renderPage();  // resuming mid-piece: straight back to the music
+  }
 }
 
 // Open one piece (the single file, or setlist entry `index`) and reset the
@@ -131,6 +135,7 @@ bool MusicReaderActivity::openPiece(const size_t index) {
   nextPagePos_ = 0;
   previousPageCount_ = 0;
   atEnd_ = false;
+  atCover_ = false;
   return true;
 }
 
@@ -141,7 +146,7 @@ void MusicReaderActivity::goToNextPiece() {
     recoverPiece(fromIdx, fromPos);
     return;
   }
-  renderPage();
+  showCover();  // the cover is the boundary between setlist pieces
 }
 
 void MusicReaderActivity::goToPreviousPieceEnd() {
@@ -524,10 +529,16 @@ void MusicReaderActivity::drawPrim(const cpmx::Prim& prim, const int ox, const i
 }
 
 void MusicReaderActivity::pageForward() {
+  if (atCover_) {
+    // Leave the cover onto the first page (layout is already current).
+    // Auto page turn (#4) arms here, so the first real turn is on tempo.
+    atCover_ = false;
+    renderPage();
+    return;
+  }
   if (nextPagePos_ >= reader.playOrderLength()) {
-    // Past the last page: mid-setlist flow straight into the next piece —
-    // the end screen belongs only after the last one. (When cover pages
-    // land, this transition goes directly to the next piece's cover.)
+    // Past the last page: mid-setlist flow to the next piece's cover — the
+    // end screen belongs only after the last one.
     if (setlistMode_ && setlistIdx_ + 1 < setlist_.count()) {
       goToNextPiece();
       return;
@@ -556,10 +567,15 @@ void MusicReaderActivity::pageForward() {
 }
 
 void MusicReaderActivity::pageBack() {
-  if (previousPageCount_ == 0) {
+  if (atCover_) {
+    // Back over the cover crosses into the previous setlist piece.
     if (setlistMode_ && setlistIdx_ > 0) {
       goToPreviousPieceEnd();
     }
+    return;
+  }
+  if (previousPageCount_ == 0) {
+    showCover();  // back from the first page lands on the cover
     return;
   }
   const uint16_t newPos = previousPages_[previousPageCount_ - 1];
@@ -574,6 +590,87 @@ void MusicReaderActivity::pageBack() {
   if (++pageTurnsSinceSave_ >= 8) {
     saveProgress();
   }
+}
+
+void MusicReaderActivity::showCover() {
+  atCover_ = true;
+  renderCover();
+}
+
+void MusicReaderActivity::renderCover() {
+  renderer.clearScreen();
+  // Center within the physically viewable area (bezel margins vary with
+  // orientation), with breathing room on top of the TRBL insets.
+  int vTop = 0, vRight = 0, vBottom = 0, vLeft = 0;
+  renderer.getOrientedViewableTRBL(&vTop, &vRight, &vBottom, &vLeft);
+  constexpr int COVER_MARGIN_PX = 24;
+  const int left = vLeft + COVER_MARGIN_PX;
+  const int usableW = renderer.getScreenWidth() - vLeft - vRight - 2 * COVER_MARGIN_PX;
+  const int screenH = renderer.getScreenHeight();
+
+  // Title from the piece metadata; a file without one shows its filename.
+  const char* title = reader.title();
+  std::string fallback;
+  if (title[0] == '\0') {
+    const std::string& path = setlistMode_ ? setlist_.pieceAt(setlistIdx_) : filePath;
+    const auto slash = path.find_last_of('/');
+    const auto start = (slash == std::string::npos) ? 0 : slash + 1;
+    const auto dot = path.find_last_of('.');
+    fallback = path.substr(start, (dot != std::string::npos && dot > start) ? dot - start : std::string::npos);
+    title = fallback.c_str();
+  }
+
+  // Largest serif size whose title still fits the width.
+  static constexpr int TITLE_FONTS[] = {NOTOSERIF_18_FONT_ID, NOTOSERIF_16_FONT_ID, NOTOSERIF_14_FONT_ID,
+                                        NOTOSERIF_12_FONT_ID};
+  int titleFont = TITLE_FONTS[3];
+  for (const int fontId : TITLE_FONTS) {
+    // cppcheck-suppress useStlAlgorithm
+    if (renderer.getTextWidth(fontId, title, EpdFontFamily::BOLD) <= usableW) {
+      titleFont = fontId;
+      break;
+    }
+  }
+
+  int y = screenH / 3;
+  const int titleW = renderer.getTextWidth(titleFont, title, EpdFontFamily::BOLD);
+  renderer.drawText(titleFont, left + (usableW - titleW) / 2, y, title, true, EpdFontFamily::BOLD);
+  y += 2 * renderer.getFontAscenderSize(titleFont);
+
+  if (reader.composer()[0] != '\0') {
+    const int w = renderer.getTextWidth(NOTOSERIF_14_FONT_ID, reader.composer());
+    renderer.drawText(NOTOSERIF_14_FONT_ID, left + (usableW - w) / 2, y, reader.composer(), true);
+    y += 2 * renderer.getFontAscenderSize(NOTOSERIF_14_FONT_ID);
+  }
+  if (reader.arranger()[0] != '\0') {
+    // Draw "arr." and the name as two adjacent runs: the arranger string can
+    // be up to 256 bytes (format ceiling), too large to compose on the stack.
+    const char* abbr = tr(STR_MUSIC_ARR_ABBR);
+    const char* name = reader.arranger();
+    const int spaceW = renderer.getSpaceWidth(NOTOSERIF_12_FONT_ID, EpdFontFamily::ITALIC);
+    const int abbrW = renderer.getTextWidth(NOTOSERIF_12_FONT_ID, abbr, EpdFontFamily::ITALIC);
+    const int nameW = renderer.getTextWidth(NOTOSERIF_12_FONT_ID, name, EpdFontFamily::ITALIC);
+    const int x = left + (usableW - (abbrW + spaceW + nameW)) / 2;
+    renderer.drawText(NOTOSERIF_12_FONT_ID, x, y, abbr, true, EpdFontFamily::ITALIC);
+    renderer.drawText(NOTOSERIF_12_FONT_ID, x + abbrW + spaceW, y, name, true, EpdFontFamily::ITALIC);
+  }
+
+  // Setlist position, small at the bottom: where you are in the gig.
+  if (setlistMode_) {
+    char pos[24];
+    snprintf(pos, sizeof(pos), "%u / %u", static_cast<unsigned>(setlistIdx_ + 1),
+             static_cast<unsigned>(setlist_.count()));
+    const int w = renderer.getTextWidth(UI_10_FONT_ID, pos);
+    renderer.drawText(UI_10_FONT_ID, left + (usableW - w) / 2,
+                      screenH - vBottom - COVER_MARGIN_PX - renderer.getFontAscenderSize(UI_10_FONT_ID), pos, true);
+  }
+
+  renderer.displayBuffer();
+#ifdef SIMULATOR
+  if (std::getenv("CROSSPOINT_MUSIC_SHOT") != nullptr) {
+    ScreenshotUtil::takeScreenshot(renderer);
+  }
+#endif
 }
 
 void MusicReaderActivity::renderEndScreen() {
@@ -636,7 +733,11 @@ void MusicReaderActivity::cycleStaffSize() {
   // Page boundaries shift with the size; re-layout from the current
   // position (stacked back-positions remain valid playOrder anchors).
   if (layoutPage(pagePos_)) {
-    renderPage();
+    if (atCover_) {
+      renderCover();  // size applies once the music shows; stay on the cover
+    } else {
+      renderPage();
+    }
   }
 }
 

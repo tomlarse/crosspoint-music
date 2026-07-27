@@ -34,6 +34,9 @@ e-book reader; this firmware adds music on top.
   volta brackets included, so you know where you are in the form.
 - Ties and slurs split correctly at line breaks, with both halves
   pre-engraved so the device never draws an awkward half-curve.
+- Each piece opens on a cover page: title, composer and arranger from the
+  file's metadata. In a setlist the cover marks the boundary between
+  pieces and shows where you are in the order.
 - The device saves your place in each piece and takes you back there when
   you reopen it.
 - Landscape is the default orientation in this fork. Scores read better
